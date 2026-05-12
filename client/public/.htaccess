@@ -1,0 +1,11 @@
+# Prevent directory listings
+Options -Indexes
+
+# Enable rewrite engine for SPA routing
+RewriteEngine On
+RewriteBase /
+
+# If the requested resource doesn't exist as a file or directory, serve index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^.*$ /index.html [L,QSA]
