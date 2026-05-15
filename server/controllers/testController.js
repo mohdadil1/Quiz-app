@@ -147,7 +147,19 @@ exports.addGuestStudent = async (req, res) => {
   const { rollno, name } = req.body;
   if (!rollno) return res.status(400).json({ message: 'rollno required' });
 
-  const student = await StudentRecord.create({ rollno, name: name ? String(name).trim() : null, class: null });
+  // Reuse existing guest record for this rollno to avoid duplicate key on (rollno, class=null)
+  const student = await StudentRecord.findOneAndUpdate(
+    { rollno: Number(rollno), class: null },
+    { $set: { name: name ? String(name).trim() : null } },
+    { upsert: true, new: true }
+  );
+
+  // Prevent enrolling the same student in the same test twice
+  const existing = await TestStudent.findOne({ test: test._id, student: student._id });
+  if (existing) {
+    return res.status(409).json({ message: 'Student with this roll number is already enrolled in this test' });
+  }
+
   const ts = await TestStudent.create({
     test: test._id,
     student: student._id,
