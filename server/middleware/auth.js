@@ -30,11 +30,12 @@ function requireAuth(roles) {
         return res.status(403).json({ message: 'Forbidden' });
       }
 
-      // For students, verify TestStudent is active
+      // For students, verify TestStudent is active (skip for MOCK tests)
       if (decoded.role === 'student') {
         const TestStudent = require('../models/TestStudent');
-        const ts = await TestStudent.findById(decoded.testStudentId);
-        if (!ts || !ts.active) {
+        const ts = await TestStudent.findById(decoded.testStudentId).populate('test');
+        if (!ts) return res.status(401).json({ message: 'Session expired' });
+        if (ts.test?.mode !== 'MOCK' && !ts.active) {
           return res.status(401).json({ message: 'Session expired' });
         }
       }

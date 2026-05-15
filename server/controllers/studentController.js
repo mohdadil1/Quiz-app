@@ -2,6 +2,7 @@ const StudentRecord = require('../models/StudentRecord');
 const Test = require('../models/Test');
 const TestStudent = require('../models/TestStudent');
 const Question = require('../models/Question');
+const StudentAnswer = require('../models/StudentAnswer');
 const { sign } = require('../middleware/auth');
 
 /**
@@ -40,27 +41,38 @@ exports.login = async (req, res) => {
     return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
   }
 
-  // If this is a mock test and the prior attempt was submitted, reset the row so the student can retry.
-  if (ts.submitted && ts.test.mode === 'MOCK') {
+  // If this is a mock test and the prior attempt was submitted (or completed), reset the row so the student can retry.
+  if (ts.test.mode === 'MOCK' && (ts.submitted || ts.completedOnce)) {
     ts.submitted = false;
+    ts.completedOnce = false; // reset so dashboard shows "Start Test" instead of "Test completed"
     ts.score = 0;
     ts.violations = 0;
     ts.autoSubmitted = false;
     ts.started = false;
+    await StudentAnswer.deleteMany({ testStudent: ts._id });
   }
 
-  // Check if already active from another device
-  if (ts.active && deviceInfo && ts.deviceInfo) {
-    if (deviceInfo.userAgent !== ts.deviceInfo.userAgent || deviceInfo.platform !== ts.deviceInfo.platform) {
-      return res.status(409).json({ message: 'Already logged in from another device' });
+  // For STANDARD tests enforce single-device active lock; skip for MOCK tests
+  if (ts.test.mode !== 'MOCK') {
+    // Check if already active from another device
+    if (ts.active && deviceInfo && ts.deviceInfo) {
+      if (deviceInfo.userAgent !== ts.deviceInfo.userAgent || deviceInfo.platform !== ts.deviceInfo.platform) {
+        return res.status(409).json({ message: 'Already logged in from another device' });
+      }
     }
+
+    // Store device info and set active
+    if (deviceInfo) {
+      ts.deviceInfo = deviceInfo;
+    }
+    ts.active = true;
+  } else {
+    // In MOCK mode we do not enforce proctoring/device locks but we still
+    // mark the TestStudent active so the JWT-backed requests are accepted.
+    ts.active = true;
+    ts.deviceInfo = undefined;
   }
 
-  // Store device info and set active
-  if (deviceInfo) {
-    ts.deviceInfo = deviceInfo;
-  }
-  ts.active = true;
   ts.started = false;
   await ts.save();
 
@@ -103,13 +115,15 @@ exports.dashboard = async (req, res) => {
   if (!ts) return res.status(404).json({ message: 'Not found' });
 
   const running = ts.test.status === 'RUNNING';
+  // For MOCK tests, show submitted if completedOnce (even if currently submitted=false for retakes)
+  const submitted = ts.test.mode === 'MOCK' ? ts.completedOnce : ts.submitted;
   res.json({
     testId: ts.test._id,
     testName: ts.test.name,
     subject: ts.test.subject,
     totalQuestions: ts.test.totalQuestions,
     running,
-    submitted: ts.submitted,
+    submitted,
     isMock: ts.test.mode === 'MOCK'
   });
 };
@@ -172,6 +186,14 @@ exports.submitAnswer = async (req, res) => {
   await q.save();
   await ts.save();
 
+  // Store the student's answer for mock test review
+  await StudentAnswer.create({
+    testStudent: ts._id,
+    question: q._id,
+    selectedOption: picked,
+    isCorrect: correct
+  });
+
   // Tell the client whether it was right, but not the correct answer
   res.json({ correct });
 };
@@ -186,6 +208,8 @@ exports.finish = async (req, res) => {
   if (ts.test.mode !== 'MOCK') {
     ts.submitted = true;
   } else {
+    // For MOCK tests: mark as completed once (for dashboard), but reset state to allow retakes
+    ts.completedOnce = true;
     ts.submitted = false;
     ts.started = false;
     ts.score = 0;
@@ -215,6 +239,59 @@ exports.logViolation = async (req, res) => {
   ts.violations = (ts.violations || 0) + 1;
   await ts.save();
   res.json({ violations: ts.violations });
+};
+
+/**
+ * GET /api/students/quiz/results
+ * Returns the student's test results (score and answers with correct answers).
+ * Only for MOCK tests.
+ */
+exports.getResults = async (req, res) => {
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  if (!ts) return res.status(404).json({ message: 'Not found' });
+  if (ts.test.mode !== 'MOCK') return res.status(403).json({ message: 'Not available for standard tests' });
+
+  // Get all questions for this test with correct answers
+  const questions = await Question.find({ test: ts.test })
+    .select('title optionA optionB optionC optionD correctAns score')
+    .sort({ createdAt: 1 });
+
+  // Get all student answers
+  const answers = await StudentAnswer.find({ testStudent: ts._id })
+    .populate('question')
+    .sort({ createdAt: 1 });
+
+  // Compute score from answers — ts.score is reset to 0 on finish for retake purposes
+  const score = answers.reduce((sum, a) => sum + (a.isCorrect ? (a.question?.score || 0) : 0), 0);
+
+  // Build answer lookup
+  const answerMap = {};
+  answers.forEach(a => {
+    answerMap[String(a.question._id)] = {
+      selected: a.selectedOption,
+      isCorrect: a.isCorrect
+    };
+  });
+
+  // Combine questions with student answers
+  const results = questions.map(q => ({
+    _id: q._id,
+    title: q.title,
+    optionA: q.optionA,
+    optionB: q.optionB,
+    optionC: q.optionC,
+    optionD: q.optionD,
+    correctAns: q.correctAns,
+    score: q.score,
+    studentAnswer: answerMap[String(q._id)] || { selected: null, isCorrect: false }
+  }));
+
+  res.json({
+    testName: ts.test.name,
+    totalQuestions: questions.length,
+    score,
+    results
+  });
 };
 
 /**

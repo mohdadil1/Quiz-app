@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
 export default function StudentDashboard() {
   const [info, setInfo] = useState(null);
@@ -41,6 +42,18 @@ export default function StudentDashboard() {
   return (
     <div className="student-page">
       <div className="student-dashboard-card">
+        {isMock && (
+          <>
+            {
+              /* Lazily load the component via relative import to keep changes minimal */
+            }
+            <React.Suspense fallback={null}>
+              <PracticeBanner variant="warning">
+                PRACTICE MODE — This is a mock test with no proctoring. You may re-login and retake.
+              </PracticeBanner>
+            </React.Suspense>
+          </>
+        )}
         {/* Top bar: avatar + name + logout */}
         <div className="student-topbar">
           <div className="student-identity">
@@ -75,6 +88,17 @@ export default function StudentDashboard() {
                 <p className="text-muted">
                   You've already submitted <strong>{info.testName}</strong>. Thanks!
                 </p>
+                {isMock && (
+                  <button
+                    className="btn btn-primary btn-block btn-lg mt-4"
+                    onClick={() => {
+                      logout();
+                      navigate('/student/login');
+                    }}
+                  >
+                    Re-login and Retake →
+                  </button>
+                )}
               </div>
             ) : info.running ? (
               <div className="student-test-card">
