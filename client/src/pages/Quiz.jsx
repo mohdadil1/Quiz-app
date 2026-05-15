@@ -1,7 +1,8 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
 // How many anti-cheat violations before the test is auto-submitted
 const MAX_WARNINGS = 3;
@@ -65,11 +66,15 @@ export default function Quiz() {
     } catch (e) {
       console.error(e);
     }
-    logout();
-    navigate('/student/finished', {
-      state: { status: autoSubmitted ? 'Auto-submitted (too many violations)' : aborted ? 'Aborted' : 'Completed' }
-    });
-  }, [logout, navigate]);
+    if (isMock) {
+      navigate('/student/mock-results');
+    } else {
+      logout();
+      navigate('/student/finished', {
+        state: { status: autoSubmitted ? 'Auto-submitted (too many violations)' : aborted ? 'Aborted' : 'Completed' }
+      });
+    }
+  }, [logout, navigate, isMock]);
 
   // -------- Answer / skip a question --------
   // `option` is 'a'|'b'|'c'|'d' for an answer, or null for a timeout-skip.
@@ -330,6 +335,11 @@ export default function Quiz() {
 
   return (
     <div className="quiz-container">
+      {isMock && (
+        <React.Suspense fallback={null}>
+          <PracticeBanner variant="danger">PRACTICE MODE — No proctoring, no timers enforced.</PracticeBanner>
+        </React.Suspense>
+      )}
       {showWarning && (
         <div
           className="alert alert-error"

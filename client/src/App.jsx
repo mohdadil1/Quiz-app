@@ -23,6 +23,7 @@ import StudentCredentials from './pages/StudentCredentials';
 import StudentDashboard from './pages/StudentDashboard';
 import Quiz from './pages/Quiz';
 import TestFinished from './pages/TestFinished';
+import MockResults from './pages/MockResults';
 
 export default function App() {
   const { role } = useAuth();
@@ -88,6 +89,10 @@ export default function App() {
         element={<ProtectedRoute role="student"><Quiz /></ProtectedRoute>}
       />
       <Route path="/student/finished" element={<TestFinished />} />
+      <Route
+        path="/student/mock-results"
+        element={<ProtectedRoute role="student"><MockResults /></ProtectedRoute>}
+      />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />

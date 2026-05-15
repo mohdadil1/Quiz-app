@@ -22,7 +22,8 @@ const testStudentSchema = new mongoose.Schema(
       timezone: { type: String }
     },
     active: { type: Boolean, default: false },
-    started: { type: Boolean, default: false }
+    started: { type: Boolean, default: false },
+    completedOnce: { type: Boolean, default: false }
   },
   { timestamps: true }
 );
