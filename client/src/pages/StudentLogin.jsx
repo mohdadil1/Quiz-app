@@ -35,7 +35,8 @@ export default function StudentLogin() {
         name: data.name || name.trim(),
         testId: data.testId,
         testName: data.testName,
-        testStatus: data.testStatus
+        testStatus: data.testStatus,
+        testMode: data.testMode
       });
       navigate('/student/dashboard');
     } catch (e) {

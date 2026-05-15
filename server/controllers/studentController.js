@@ -29,14 +29,25 @@ exports.login = async (req, res) => {
     return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
   }
 
-  // Find a not-yet-submitted TestStudent row matching (any of those students, this password)
+  // Find a matching TestStudent row for this student/password.
   const ts = await TestStudent.findOne({
     student: { $in: studentRecords.map(s => s._id) },
-    password,
-    submitted: false
+    password
   }).populate('test');
 
   if (!ts) return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
+  if (ts.submitted && ts.test.mode !== 'MOCK') {
+    return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
+  }
+
+  // If this is a mock test and the prior attempt was submitted, reset the row so the student can retry.
+  if (ts.submitted && ts.test.mode === 'MOCK') {
+    ts.submitted = false;
+    ts.score = 0;
+    ts.violations = 0;
+    ts.autoSubmitted = false;
+    ts.started = false;
+  }
 
   // Check if already active from another device
   if (ts.active && deviceInfo && ts.deviceInfo) {
@@ -77,7 +88,8 @@ exports.login = async (req, res) => {
     name: studentName,
     testId: ts.test._id,
     testName: ts.test.name,
-    testStatus: ts.test.status
+    testStatus: ts.test.status,
+    testMode: ts.test.mode
   });
 };
 
@@ -97,7 +109,8 @@ exports.dashboard = async (req, res) => {
     subject: ts.test.subject,
     totalQuestions: ts.test.totalQuestions,
     running,
-    submitted: ts.submitted
+    submitted: ts.submitted,
+    isMock: ts.test.mode === 'MOCK'
   });
 };
 
@@ -168,11 +181,19 @@ exports.submitAnswer = async (req, res) => {
  * Marks the TestStudent as submitted. Idempotent — safe to call twice.
  */
 exports.finish = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId);
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
-  ts.submitted = true;
+  if (ts.test.mode !== 'MOCK') {
+    ts.submitted = true;
+  } else {
+    ts.submitted = false;
+    ts.started = false;
+    ts.score = 0;
+    ts.violations = 0;
+    ts.autoSubmitted = false;
+  }
   ts.active = false;
-  if (req.body.autoSubmitted) ts.autoSubmitted = true;
+  if (req.body.autoSubmitted && ts.test.mode !== 'MOCK') ts.autoSubmitted = true;
   await ts.save();
   res.json({ ok: true, aborted: !!req.body.aborted, score: ts.score });
 };
@@ -184,9 +205,12 @@ exports.finish = async (req, res) => {
  * whether to force-submit.
  */
 exports.logViolation = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId);
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.json({ violations: ts.violations, submitted: true });
+  if (ts.test.mode === 'MOCK') {
+    return res.json({ violations: 0, submitted: false });
+  }
 
   ts.violations = (ts.violations || 0) + 1;
   await ts.save();

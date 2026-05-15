@@ -44,7 +44,7 @@ exports.getTest = async (req, res) => {
 
 // POST /api/tests — create a new test; also seeds TestStudent rows for every student in the class
 exports.createTest = async (req, res) => {
-  const { name, subject, date, totalQuestions, status, classId } = req.body;
+  const { name, subject, date, totalQuestions, status, classId, mode } = req.body;
   if (!name || !subject || !date || !totalQuestions || !status || !classId) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -61,7 +61,8 @@ exports.createTest = async (req, res) => {
     date,
     totalQuestions,
     class: cls._id,
-    status
+    status,
+    mode: mode === 'MOCK' ? 'MOCK' : 'STANDARD'
   });
 
   // Create per-test student rows for every student record in this class
@@ -84,7 +85,7 @@ exports.updateTest = async (req, res) => {
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
 
-  const { name, subject, date, totalQuestions, status } = req.body;
+  const { name, subject, date, totalQuestions, status, mode } = req.body;
   if (name !== undefined) test.name = name;
   if (subject !== undefined) test.subject = subject;
   if (date !== undefined) test.date = date;
@@ -94,6 +95,12 @@ exports.updateTest = async (req, res) => {
       return res.status(400).json({ message: 'Invalid status' });
     }
     test.status = status;
+  }
+  if (mode !== undefined) {
+    if (!['STANDARD', 'MOCK'].includes(mode)) {
+      return res.status(400).json({ message: 'Invalid mode' });
+    }
+    test.mode = mode;
   }
   await test.save();
   res.json(test);

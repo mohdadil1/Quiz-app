@@ -37,7 +37,8 @@ export default function TestDetails() {
         subject: test.subject,
         date: test.date,
         totalQuestions: test.totalQuestions,
-        status: test.status
+        status: test.status,
+        mode: test.mode
       });
       setMsg({ type: 'success', text: 'General settings updated successfully' });
     } catch {
@@ -171,6 +172,13 @@ export default function TestDetails() {
                 <select className="form-control" value={test.status} onChange={(e) => setTest({ ...test, status: e.target.value })}>
                   <option value="PENDING">PENDING</option>
                   <option value="RUNNING">RUNNING</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Mode</label>
+                <select className="form-control" value={test.mode || 'STANDARD'} onChange={(e) => setTest({ ...test, mode: e.target.value })}>
+                  <option value="STANDARD">STANDARD</option>
+                  <option value="MOCK">MOCK</option>
                 </select>
               </div>
               <button type="submit" className="btn btn-primary btn-block">UPDATE</button>

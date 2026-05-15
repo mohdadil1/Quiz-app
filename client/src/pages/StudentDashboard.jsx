@@ -36,6 +36,7 @@ export default function StudentDashboard() {
   const displayName = (user?.name && user.name.trim()) || `Student ${user?.rollno || ''}`;
   const initial = displayName.charAt(0).toUpperCase() || 'S';
   const greeting = getGreeting();
+  const isMock = info?.isMock;
 
   return (
     <div className="student-page">
@@ -79,6 +80,7 @@ export default function StudentDashboard() {
               <div className="student-test-card">
                 <div className="student-test-badge">Live</div>
                 <h3 className="student-test-title">{info.testName}</h3>
+                {isMock && <div className="student-test-mode">Mock Practice</div>}
 
                 <div className="student-test-meta">
                   <div className="meta-item">
@@ -95,11 +97,19 @@ export default function StudentDashboard() {
                   </div>
                 </div>
 
-                <ul className="student-instructions">
-                  <li>You have <strong>1 minute</strong> per question.</li>
-                  <li>The test runs in fullscreen. Don't switch tabs.</li>
-                  <li>You'll get 3 warnings before auto-submit.</li>
-                </ul>
+                {isMock ? (
+                  <ul className="student-instructions">
+                    <li>This is a <strong>Mock Practice</strong> test with no anti-cheat restrictions.</li>
+                    <li>No fullscreen, no warnings, and no auto-submit.</li>
+                    <li>You can re-login and retake this mock test freely.</li>
+                  </ul>
+                ) : (
+                  <ul className="student-instructions">
+                    <li>You have <strong>1 minute</strong> per question.</li>
+                    <li>The test runs in fullscreen. Don't switch tabs.</li>
+                    <li>You'll get 3 warnings before auto-submit.</li>
+                  </ul>
+                )}
 
                 <button className="btn btn-primary btn-block btn-lg" onClick={handleStart}>
                   Start Test →

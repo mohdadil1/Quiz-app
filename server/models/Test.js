@@ -16,6 +16,11 @@ const testSchema = new mongoose.Schema(
       type: String,
       enum: ['PENDING', 'RUNNING', 'COMPLETED'],
       default: 'PENDING'
+    },
+    mode: {
+      type: String,
+      enum: ['STANDARD', 'MOCK'],
+      default: 'STANDARD'
     }
   },
   { timestamps: true }

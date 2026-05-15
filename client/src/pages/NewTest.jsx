@@ -11,6 +11,7 @@ export default function NewTest() {
     date: '',
     totalQuestions: '',
     status: 'PENDING',
+    mode: 'STANDARD',
     classId: ''
   });
   const [err, setErr] = useState('');
@@ -72,6 +73,15 @@ export default function NewTest() {
                   <option value="RUNNING">RUNNING</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Test mode</label>
+                <select className="form-control" value={form.mode} onChange={update('mode')}>
+                  <option value="STANDARD">STANDARD</option>
+                  <option value="MOCK">MOCK</option>
+                </select>
+              </div>
+            </div>
+            <div className="row row-2">
               <div className="form-group">
                 <label>Class</label>
                 <select className="form-control" value={form.classId} onChange={update('classId')} required>

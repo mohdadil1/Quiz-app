@@ -65,6 +65,11 @@ export default function TeacherDashboard() {
                       <span className={`badge badge-${t.status.toLowerCase()}`}>
                         {t.status}
                       </span>
+                      {t.mode === 'MOCK' && (
+                        <span className="badge badge-secondary" style={{ marginLeft: 8 }}>
+                          MOCK
+                        </span>
+                      )}
                     </h5>
                     <div className="item-meta">
                       <span><strong>Subject:</strong> {t.subject}</span>
