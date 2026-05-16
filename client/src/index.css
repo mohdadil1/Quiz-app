@@ -416,6 +416,7 @@ select.form-control {
   margin-bottom: 12px;
   font-weight: 700;
   text-align: center;
+  font-size: 0.9rem;
 }
 .practice-banner--warning {
   background: #fff4e6;
@@ -426,6 +427,14 @@ select.form-control {
   background: #ffeef0;
   border: 1px solid #ff4d4f;
   color: #7a0000;
+}
+
+@media (max-width: 640px) {
+  .practice-banner {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+    margin-bottom: 10px;
+  }
 }
 
 .table th {
@@ -785,6 +794,19 @@ select.form-control {
   padding-right: 60px; /* room for badge */
 }
 
+.student-test-mode {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
 .student-test-meta {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1069,4 +1091,48 @@ body.student-theme {
   .quiz-options .option-btn { padding: 12px 14px; gap: 10px; }
   .option-letter { width: 28px; height: 28px; font-size: 0.85rem; }
   .option-text { font-size: 0.92rem; }
+}
+
+/* Extra small phones (< 380px) */
+@media (max-width: 380px) {
+  .student-page { padding: 16px; }
+  .student-dashboard-card { padding: 16px; margin-bottom: 20px; }
+  .student-topbar { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .student-topbar .btn-secondary { align-self: flex-start; }
+  .student-avatar { width: 40px; height: 40px; font-size: 1rem; }
+  .student-name { font-size: 1rem; }
+  .student-greeting { font-size: 0.75rem; }
+  .student-test-title { font-size: 1.15rem; padding-right: 0; margin-top: 30px; }
+  .student-test-badge { position: static; margin-bottom: 12px; }
+  .student-test-meta { grid-template-columns: 1fr; gap: 8px; }
+  .meta-item { padding: 8px 10px; }
+  .meta-label { font-size: 0.65rem; margin-bottom: 3px; }
+  .meta-value { font-size: 0.9rem; }
+  .student-instructions { margin-bottom: 16px; }
+  .student-instructions li { padding: 5px 0 5px 18px; font-size: 0.85rem; }
+  .btn-lg { padding: 12px 18px; font-size: 0.95rem; }
+  
+  /* Quiz header adjustments */
+  .quiz-container { padding: 16px 12px 30px; }
+  .quiz-card { padding: 16px; }
+  .quiz-header-bar { flex-direction: column; align-items: stretch; padding: 10px; }
+  .quiz-header-info { flex-direction: row; justify-content: space-between; }
+  .quiz-timer { width: 48px; height: 48px; margin-left: auto; }
+  .btn-secondary { padding: 8px 12px; font-size: 0.8rem; }
+  
+  /* Question header */
+  .question-header { gap: 8px; margin-bottom: 16px; }
+  .question-title { font-size: 1rem; }
+  .question-number { padding: 3px 10px; font-size: 0.85rem; }
+  
+  /* Options */
+  .option-btn { padding: 12px 12px; }
+  .option-letter { width: 26px; height: 26px; }
+  .option-text { font-size: 0.9rem; }
+}
+
+/* Ultra-wide layout fix for large screens */
+@media (min-width: 1200px) {
+  .quiz-container { max-width: 920px; }
+  .student-dashboard-card { max-width: 620px; }
 }
