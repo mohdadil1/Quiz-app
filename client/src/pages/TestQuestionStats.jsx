@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import { RichText } from '../components/RichTextEditor';
 
 export default function TestQuestionStats() {
   const { id } = useParams();
@@ -31,7 +32,7 @@ export default function TestQuestionStats() {
               const pct = total > 0 ? Math.round((q.correctCount / total) * 100) : 0;
               return (
                 <div key={q.id} className="item-card" style={{ cursor: 'default' }}>
-                  <h5>Q{i + 1}. {q.title}</h5>
+                  <h5>Q{i + 1}. <RichText value={q.title} /></h5>
                   <div className="flex-between mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                     <span>✓ Correct: <strong style={{ color: 'var(--success)' }}>{q.correctCount}</strong></span>
                     <span>✗ Wrong: <strong style={{ color: 'var(--danger)' }}>{q.wrongCount}</strong></span>

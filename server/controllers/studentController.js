@@ -145,7 +145,7 @@ exports.getQuestions = async (req, res) => {
   await ts.save();
 
   const questions = await Question.find({ test: ts.test })
-    .select('title optionA optionB optionC optionD score')
+    .select('title optionA optionB optionC optionD score timeLimit')
     .sort({ createdAt: 1 });
 
   // Shuffle questions for this student

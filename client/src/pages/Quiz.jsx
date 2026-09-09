@@ -2,13 +2,23 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { RichText } from '../components/RichTextEditor';
 const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
 // How many anti-cheat violations before the test is auto-submitted
 const MAX_WARNINGS = 3;
 
-// Per-question time limit in seconds
-const QUESTION_TIME_LIMIT = 60;
+// Fallback for questions created before per-question timing was added.
+const DEFAULT_QUESTION_TIME_LIMIT = 60;
+
+function getQuestionTimeLimit(question) {
+  const minutes = Number(question?.timeLimit);
+  return (Number.isFinite(minutes) && minutes >= 0.25 ? minutes : 1) * 60;
+}
+
+function getFullscreenElement() {
+  return document.fullscreenElement || document.webkitFullscreenElement;
+}
 
 export default function Quiz() {
   const [questions, setQuestions] = useState([]);
@@ -21,10 +31,11 @@ export default function Quiz() {
   // Anti-cheat state
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState('');
   const [started, setStarted] = useState(false); // show "Start" screen first (needed for fullscreen)
 
   // Per-question timer (in seconds remaining)
-  const [timeLeft, setTimeLeft] = useState(QUESTION_TIME_LIMIT);
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_QUESTION_TIME_LIMIT);
 
   // Refs so event listeners always see the latest values
   const warningsRef = useRef(0);
@@ -57,8 +68,9 @@ export default function Quiz() {
     finishedRef.current = true;
 
     // Exit fullscreen if we're in it
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+    if (getFullscreenElement()) {
+      const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
+      exitFullscreen?.call(document).catch?.(() => {});
     }
 
     try {
@@ -106,7 +118,7 @@ export default function Quiz() {
         idxRef.current = next;
         setIdx(next);
         setSelected(null);
-        setTimeLeft(QUESTION_TIME_LIMIT);
+        setTimeLeft(getQuestionTimeLimit(questions[next]));
         submittingRef.current = false;
         setSubmitting(false);
       }
@@ -183,12 +195,16 @@ export default function Quiz() {
     if (isMock || !started) return;
 
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement && !finishedRef.current) {
+      if (!getFullscreenElement() && !finishedRef.current) {
         handleViolation('fullscreen-exit');
       }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
+    };
   }, [isMock, started, handleViolation]);
 
   // -------- Anti-cheat: block right-click, copy, devtools shortcuts --------
@@ -198,14 +214,19 @@ export default function Quiz() {
     const blockContext = (e) => e.preventDefault();
     const blockCopy = (e) => e.preventDefault();
     const blockKeys = (e) => {
-      if (e.key === 'F12') { e.preventDefault(); return; }
-      if (e.ctrlKey && e.shiftKey && ['I', 'i', 'J', 'j', 'C', 'c'].includes(e.key)) {
+      const key = e.key.toLowerCase();
+      const blockedFunctionKey = /^f(?:1[0-2]|[1-9])$/.test(key);
+      const blockedShortcut = (e.ctrlKey || e.metaKey) &&
+        ['a', 'c', 'i', 'j', 'p', 's', 'u', 'v', 'x'].includes(key);
+      const blockedNavigation = e.altKey && ['arrowleft', 'arrowright'].includes(key);
+
+      if (blockedFunctionKey || blockedShortcut || blockedNavigation || key === 'escape') {
         e.preventDefault();
+        e.stopPropagation();
         return;
       }
-      if (e.ctrlKey && ['u', 'U', 's', 'S', 'p', 'P'].includes(e.key)) {
+      if (e.key === 'ContextMenu') {
         e.preventDefault();
-        return;
       }
     };
 
@@ -235,25 +256,30 @@ export default function Quiz() {
   }, [isMock, started]);
 
   // -------- Start the test (also enters fullscreen) --------
-  const handleStart = () => {
+  const handleStart = async () => {
     if (isMock) {
       setStarted(true);
       return;
     }
 
     const el = document.documentElement;
-    if (el.requestFullscreen) {
-      el.requestFullscreen()
-        .then(() => {
-          setTimeLeft(QUESTION_TIME_LIMIT);
-          setStarted(true);
-        })
-        .catch(() => {
-          setTimeLeft(QUESTION_TIME_LIMIT);
-          setStarted(true);
-        });
-    } else {
-      setTimeLeft(QUESTION_TIME_LIMIT);
+    const requestFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!requestFullscreen) {
+      setFullscreenError('Fullscreen is not supported on this device. The test will continue with tab and window monitoring.');
+      setTimeLeft(getQuestionTimeLimit(questions[0]));
+      setStarted(true);
+      return;
+    }
+
+    setFullscreenError('');
+    try {
+      await requestFullscreen.call(el, { navigationUI: 'hide' });
+      if (!getFullscreenElement()) throw new Error('Fullscreen request was not accepted');
+      setTimeLeft(getQuestionTimeLimit(questions[0]));
+      setStarted(true);
+    } catch {
+      setFullscreenError('Fullscreen permission was unavailable. The test will continue with tab and window monitoring.');
+      setTimeLeft(getQuestionTimeLimit(questions[0]));
       setStarted(true);
     }
   };
@@ -303,7 +329,7 @@ export default function Quiz() {
             </ul>
           ) : (
             <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
-              <li>You have <strong>{QUESTION_TIME_LIMIT} seconds per question</strong>. When time runs out, the next question loads automatically.</li>
+              <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
               <li>The test will run in <strong>fullscreen mode</strong>.</li>
               <li><strong>Do not</strong> switch tabs, minimize, or exit fullscreen.</li>
               <li>Right-click, copy, and developer tools are disabled.</li>
@@ -314,6 +340,7 @@ export default function Quiz() {
               <li>The test has <strong>{questions.length} question(s)</strong>.</li>
             </ul>
           )}
+          {fullscreenError && <div className="alert alert-error">{fullscreenError}</div>}
           <button className="btn btn-primary btn-block" onClick={handleStart}>
             I understand — Start Test
           </button>
@@ -324,6 +351,7 @@ export default function Quiz() {
 
   // -------- Active quiz --------
   const q = questions[idx];
+  const questionTimeLimit = getQuestionTimeLimit(q);
   const remaining = MAX_WARNINGS - warnings;
   const progressPct = ((idx) / questions.length) * 100;
 
@@ -339,6 +367,11 @@ export default function Quiz() {
         <React.Suspense fallback={null}>
           <PracticeBanner variant="danger">PRACTICE MODE — No proctoring, no timers enforced.</PracticeBanner>
         </React.Suspense>
+      )}
+      {fullscreenError && (
+        <div className="alert alert-error" style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+          {fullscreenError}
+        </div>
       )}
       {showWarning && (
         <div
@@ -384,7 +417,7 @@ export default function Quiz() {
                 cx="18"
                 cy="18"
                 r="15.9155"
-                strokeDasharray={`${(timeLeft / QUESTION_TIME_LIMIT) * 100}, 100`}
+                strokeDasharray={`${(timeLeft / questionTimeLimit) * 100}, 100`}
               />
             </svg>
             <div className="quiz-timer-text">
@@ -412,7 +445,7 @@ export default function Quiz() {
           <>
             <div className="question-header">
               <span className="question-number">{idx + 1}</span>
-              <div className="question-title">{q.title}</div>
+              <div className="question-title"><RichText value={q.title} /></div>
             </div>
             <div className="quiz-options">
               {[

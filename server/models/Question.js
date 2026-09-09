@@ -20,6 +20,7 @@ const questionSchema = new mongoose.Schema(
       lowercase: true
     },
     score: { type: Number, required: true, default: 1 },
+    timeLimit: { type: Number, required: true, default: 1, min: 0.25 },
     correctCount: { type: Number, default: 0 },
     wrongCount: { type: Number, default: 0 }
   },

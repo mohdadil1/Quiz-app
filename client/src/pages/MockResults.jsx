@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { RichText } from '../components/RichTextEditor';
 
 export default function MockResults() {
   const [results, setResults] = useState(null);
@@ -127,7 +128,7 @@ export default function MockResults() {
                   </div>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#333' }}>
-                      Q{idx + 1}: {q.title}
+                      Q{idx + 1}: <RichText value={q.title} />
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: '#999' }}>
                       {isCorrect ? 'Correct!' : 'Incorrect'}
