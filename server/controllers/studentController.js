@@ -154,7 +154,12 @@ exports.getQuestions = async (req, res) => {
     [questions[i], questions[j]] = [questions[j], questions[i]];
   }
 
-  res.json(questions);
+  res.json(questions.map((question) => ({
+    ...question.toObject(),
+    timeLimit: Number.isFinite(Number(question.timeLimit)) && Number(question.timeLimit) >= 0.25
+      ? Number(question.timeLimit)
+      : 1
+  })));
 };
 
 /**

@@ -5,7 +5,10 @@ const allowedTags = new Set(['B', 'STRONG', 'I', 'EM', 'U', 'H1', 'H2', 'H3', 'P
 export function sanitizeRichText(value = '') {
   if (typeof document === 'undefined') return value;
 
-  const source = String(value);
+  const rawValue = String(value);
+  const decoder = document.createElement('textarea');
+  decoder.innerHTML = rawValue;
+  const source = decoder.value;
   const container = document.createElement('div');
   container.innerHTML = source.includes('<') ? source : source.replace(/\n/g, '<br>');
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT);
