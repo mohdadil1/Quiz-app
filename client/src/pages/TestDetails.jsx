@@ -286,11 +286,11 @@ export default function TestDetails() {
 
       {/* Upload modal */}
       {showUpload && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
         }} onClick={() => setShowUpload(false)}>
-          <div className="card" style={{ maxWidth: 500, width: '90%', margin: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div className="card modal-card" style={{ maxWidth: 500, width: '90%', margin: 0 }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header"><h3>Import Spreadsheet</h3></div>
             <div className="card-body">
               <p className="text-muted mb-2">
@@ -311,11 +311,11 @@ export default function TestDetails() {
 
       {/* Edit question modal */}
       {editingQuestion && (
-        <div style={{
+        <div className="modal-overlay" style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
         }} onClick={() => setEditingQuestion(null)}>
-          <div className="card" style={{ maxWidth: 600, width: '90%', margin: 0 }} onClick={(e) => e.stopPropagation()}>
+          <div className="card modal-card" style={{ maxWidth: 600, width: '90%', margin: 0 }} onClick={(e) => e.stopPropagation()}>
             <div className="card-header"><h3>Edit Question</h3></div>
             <div className="card-body">
               <form onSubmit={(e) => { e.preventDefault(); saveEditedQuestion(); }}>
