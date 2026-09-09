@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import RichTextEditor from '../components/RichTextEditor';
 
 export default function AddQuestion() {
   const { id: testId } = useParams();
@@ -13,7 +14,8 @@ export default function AddQuestion() {
     optionC: '',
     optionD: '',
     correctAns: 'A',
-    score: 1
+    score: 1,
+    timeLimit: 1
   });
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,6 +25,10 @@ export default function AddQuestion() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
+    if (!form.title.replace(/<[^>]*>/g, '').trim()) {
+      setErr('Question title is required');
+      return;
+    }
     setLoading(true);
     try {
       await api.post('/questions', { testId, ...form, score: Number(form.score) });
@@ -42,7 +48,7 @@ export default function AddQuestion() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Question title</label>
-              <textarea className="form-control" rows="3" value={form.title} onChange={update('title')} required />
+              <RichTextEditor value={form.title} onChange={(title) => setForm({ ...form, title })} />
             </div>
             <div className="row row-2">
               <div className="form-group">
@@ -72,9 +78,15 @@ export default function AddQuestion() {
                   <option value="D">D</option>
                 </select>
               </div>
+            </div>
+            <div className="row row-2">
               <div className="form-group">
                 <label>Score</label>
                 <input type="number" min="1" className="form-control" value={form.score} onChange={update('score')} required />
+              </div>
+              <div className="form-group">
+                <label>Time limit (minutes)</label>
+                <input type="number" min="0.25" step="0.25" className="form-control" value={form.timeLimit} onChange={update('timeLimit')} required />
               </div>
             </div>
             <div className="text-center">

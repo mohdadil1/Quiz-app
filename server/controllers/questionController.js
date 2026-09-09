@@ -18,7 +18,7 @@ async function assertOwnsTest(testId, userId) {
 
 // POST /api/questions  { testId, title, optionA..D, correctAns, score }
 exports.createQuestion = async (req, res) => {
-  const { testId, title, optionA, optionB, optionC, optionD, correctAns, score } = req.body;
+  const { testId, title, optionA, optionB, optionC, optionD, correctAns, score, timeLimit } = req.body;
   if (!testId || !title || !optionA || !optionB || !optionC || !optionD || !correctAns || score == null) {
     return res.status(400).json({ message: 'All fields are required' });
   }
@@ -27,6 +27,10 @@ exports.createQuestion = async (req, res) => {
 
   const ans = normalizeCorrect(correctAns);
   if (!ans) return res.status(400).json({ message: 'correctAns must be A, B, C or D' });
+  const parsedTimeLimit = Number(timeLimit ?? 1);
+  if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
+    return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
+  }
 
   const q = await Question.create({
     test: test._id,
@@ -36,14 +40,15 @@ exports.createQuestion = async (req, res) => {
     optionC,
     optionD,
     correctAns: ans,
-    score
+    score,
+    timeLimit: parsedTimeLimit
   });
   res.status(201).json(q);
 };
 
 // PUT /api/questions/:id  { title, optionA..D, correctAns, score }
 exports.updateQuestion = async (req, res) => {
-  const { title, optionA, optionB, optionC, optionD, correctAns, score } = req.body;
+  const { title, optionA, optionB, optionC, optionD, correctAns, score, timeLimit } = req.body;
   if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || score == null) {
     return res.status(400).json({ message: 'All fields are required' });
   }
@@ -55,6 +60,10 @@ exports.updateQuestion = async (req, res) => {
 
   const ans = normalizeCorrect(correctAns);
   if (!ans) return res.status(400).json({ message: 'correctAns must be A, B, C or D' });
+  const parsedTimeLimit = Number(timeLimit ?? 1);
+  if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
+    return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
+  }
 
   q.title = title;
   q.optionA = optionA;
@@ -63,6 +72,7 @@ exports.updateQuestion = async (req, res) => {
   q.optionD = optionD;
   q.correctAns = ans;
   q.score = score;
+  q.timeLimit = parsedTimeLimit;
   await q.save();
 
   res.json(q);

@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import RichTextEditor, { RichText } from '../components/RichTextEditor';
 
 export default function TestDetails() {
   const { id } = useParams();
@@ -92,11 +93,15 @@ export default function TestDetails() {
   };
 
   const editQuestion = (question) => {
-    setEditingQuestion({ ...question });
+    setEditingQuestion({ ...question, timeLimit: Number(question.timeLimit) || 1 });
   };
 
   const saveEditedQuestion = async () => {
     if (!editingQuestion) return;
+    if (!editingQuestion.title.replace(/<[^>]*>/g, '').trim()) {
+      setMsg({ type: 'error', text: 'Question title is required' });
+      return;
+    }
     try {
       await api.put(`/questions/${editingQuestion._id}`, {
         title: editingQuestion.title,
@@ -105,7 +110,8 @@ export default function TestDetails() {
         optionC: editingQuestion.optionC,
         optionD: editingQuestion.optionD,
         correctAns: editingQuestion.correctAns,
-        score: editingQuestion.score
+        score: editingQuestion.score,
+        timeLimit: Number(editingQuestion.timeLimit)
       });
       setEditingQuestion(null);
       setMsg({ type: 'success', text: 'Question updated successfully' });
@@ -247,6 +253,7 @@ export default function TestDetails() {
                     <th>D</th>
                     <th>Correct</th>
                     <th>Score</th>
+                    <th>Time</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -254,13 +261,14 @@ export default function TestDetails() {
                   {test.questions.map((q, i) => (
                     <tr key={q._id}>
                       <td>{i + 1}</td>
-                      <td>{q.title}</td>
+                      <td><RichText value={q.title} /></td>
                       <td>{q.optionA}</td>
                       <td>{q.optionB}</td>
                       <td>{q.optionC}</td>
                       <td>{q.optionD}</td>
                       <td>{q.correctAns?.toUpperCase()}</td>
                       <td>{q.score}</td>
+                      <td>{q.timeLimit || 1} min</td>
                       <td>
                         <button className="btn btn-primary btn-sm mr-1" onClick={() => editQuestion(q)}>Edit</button>
                         <button className="btn btn-danger btn-sm" onClick={() => deleteQuestion(q._id)}>Delete</button>
@@ -313,11 +321,9 @@ export default function TestDetails() {
               <form onSubmit={(e) => { e.preventDefault(); saveEditedQuestion(); }}>
                 <div className="form-group">
                   <label>Question</label>
-                  <textarea
-                    className="form-control"
+                  <RichTextEditor
                     value={editingQuestion.title}
-                    onChange={(e) => setEditingQuestion({ ...editingQuestion, title: e.target.value })}
-                    required
+                    onChange={(title) => setEditingQuestion({ ...editingQuestion, title })}
                   />
                 </div>
                 <div className="row row-2">
@@ -383,6 +389,18 @@ export default function TestDetails() {
                       className="form-control"
                       value={editingQuestion.score}
                       onChange={(e) => setEditingQuestion({ ...editingQuestion, score: Number(e.target.value) })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Time limit (minutes)</label>
+                    <input
+                      type="number"
+                      min="0.25"
+                      step="0.25"
+                      className="form-control"
+                      value={editingQuestion.timeLimit}
+                      onChange={(e) => setEditingQuestion({ ...editingQuestion, timeLimit: e.target.value })}
                       required
                     />
                   </div>
