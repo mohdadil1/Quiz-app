@@ -4,6 +4,11 @@ import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 import RichTextEditor, { RichText } from '../components/RichTextEditor';
 
+function getTimeLimit(question) {
+  const value = Number(question?.timeLimit);
+  return Number.isFinite(value) && value >= 0.25 ? value : 1;
+}
+
 export default function TestDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -93,7 +98,7 @@ export default function TestDetails() {
   };
 
   const editQuestion = (question) => {
-    setEditingQuestion({ ...question, timeLimit: Number(question.timeLimit) || 1 });
+    setEditingQuestion({ ...question, timeLimit: getTimeLimit(question) });
   };
 
   const saveEditedQuestion = async () => {
@@ -103,7 +108,7 @@ export default function TestDetails() {
       return;
     }
     try {
-      await api.put(`/questions/${editingQuestion._id}`, {
+      const { data: savedQuestion } = await api.put(`/questions/${editingQuestion._id}`, {
         title: editingQuestion.title,
         optionA: editingQuestion.optionA,
         optionB: editingQuestion.optionB,
@@ -115,7 +120,12 @@ export default function TestDetails() {
       });
       setEditingQuestion(null);
       setMsg({ type: 'success', text: 'Question updated successfully' });
-      load();
+      setTest((currentTest) => currentTest && {
+        ...currentTest,
+        questions: currentTest.questions.map((question) => (
+          question._id === savedQuestion._id ? savedQuestion : question
+        ))
+      });
     } catch (error) {
       setMsg({ type: 'error', text: error?.response?.data?.message || 'Error updating question' });
     }
@@ -268,7 +278,7 @@ export default function TestDetails() {
                       <td>{q.optionD}</td>
                       <td>{q.correctAns?.toUpperCase()}</td>
                       <td>{q.score}</td>
-                      <td>{q.timeLimit || 1} min</td>
+                      <td>{getTimeLimit(q)} min</td>
                       <td>
                         <button className="btn btn-primary btn-sm mr-1" onClick={() => editQuestion(q)}>Edit</button>
                         <button className="btn btn-danger btn-sm" onClick={() => deleteQuestion(q._id)}>Delete</button>
