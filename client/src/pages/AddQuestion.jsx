@@ -42,7 +42,7 @@ export default function AddQuestion() {
           <form onSubmit={handleSubmit}>
             <div className="form-group">
               <label>Question title</label>
-              <input className="form-control" value={form.title} onChange={update('title')} required />
+              <textarea className="form-control" rows="3" value={form.title} onChange={update('title')} required />
             </div>
             <div className="row row-2">
               <div className="form-group">
