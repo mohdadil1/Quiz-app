@@ -582,12 +582,16 @@ select.form-control {
   max-width: 800px;
   margin: 40px auto;
   padding: 0 20px;
+  width: 100%;
+  overflow-x: hidden;
 }
 .quiz-card {
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-lg);
   padding: 32px;
+  min-width: 0;
+  overflow: hidden;
 }
 .question-header {
   display: flex;
@@ -608,6 +612,14 @@ select.form-control {
 .question-title {
   font-size: 1.15rem;
   font-weight: 500;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.question-title .rich-text-output {
+  display: block;
+  max-width: 100%;
 }
 .option-btn {
   display: block;
