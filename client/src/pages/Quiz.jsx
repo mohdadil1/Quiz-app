@@ -42,6 +42,7 @@ export default function Quiz() {
   const finishedRef = useRef(false);   // so we don't trigger warnings after auto-submit
   const submittingRef = useRef(false); // guard against double-skip from timer + click
   const idxRef = useRef(0);
+  const timerDeadlineRef = useRef(null);
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -118,7 +119,6 @@ export default function Quiz() {
         idxRef.current = next;
         setIdx(next);
         setSelected(null);
-        setTimeLeft(getQuestionTimeLimit(questions[next]));
         submittingRef.current = false;
         setSubmitting(false);
       }
@@ -133,24 +133,24 @@ export default function Quiz() {
   useEffect(() => {
     if (isMock) return;
     if (!started || loading || submitting || finishedRef.current) return;
-    if (!questions.length) return;
+    const question = questions[idx];
+    if (!question) return;
 
-    // tick down every second
+    const duration = getQuestionTimeLimit(question);
+    timerDeadlineRef.current = Date.now() + duration * 1000;
+    setTimeLeft(duration);
+
     const intervalId = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(intervalId);
-          // Move to next question (or finish) as a timeout-skip
-          submitAnswerOrSkip(null);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const remaining = Math.max(0, Math.ceil((timerDeadlineRef.current - Date.now()) / 1000));
+      setTimeLeft(remaining);
+      if (remaining === 0) {
+        clearInterval(intervalId);
+        submitAnswerOrSkip(null);
+      }
+    }, 250);
 
     return () => clearInterval(intervalId);
-    // Re-arm the timer whenever the question index changes or the user starts the test
-  }, [idx, started, loading, submitting, questions.length, submitAnswerOrSkip, isMock]);
+  }, [idx, started, loading, submitting, questions, submitAnswerOrSkip, isMock]);
 
   // -------- Violation handler --------
   const handleViolation = useCallback(async (reason) => {
@@ -266,7 +266,6 @@ export default function Quiz() {
     const requestFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!requestFullscreen) {
       setFullscreenError('Fullscreen is not supported on this device. The test will continue with tab and window monitoring.');
-      setTimeLeft(getQuestionTimeLimit(questions[0]));
       setStarted(true);
       return;
     }
@@ -275,11 +274,9 @@ export default function Quiz() {
     try {
       await requestFullscreen.call(el, { navigationUI: 'hide' });
       if (!getFullscreenElement()) throw new Error('Fullscreen request was not accepted');
-      setTimeLeft(getQuestionTimeLimit(questions[0]));
       setStarted(true);
     } catch {
       setFullscreenError('Fullscreen permission was unavailable. The test will continue with tab and window monitoring.');
-      setTimeLeft(getQuestionTimeLimit(questions[0]));
       setStarted(true);
     }
   };
