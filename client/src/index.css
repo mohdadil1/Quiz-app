@@ -222,6 +222,17 @@ h1, h2, h3, h4, h5, h6 {
 .card-body {
   padding: 24px;
 }
+.modal-overlay {
+  padding: 20px;
+}
+.modal-card {
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+.modal-card .card-body {
+  overflow-y: auto;
+}
 
 /* ----------- item card (dashboard list rows) ----------- */
 .item-card {
@@ -724,6 +735,14 @@ select.form-control {
   }
   .card-body {
     padding: 16px;
+  }
+
+  .modal-overlay {
+    align-items: flex-start !important;
+    padding: 12px;
+  }
+  .modal-card {
+    max-height: calc(100vh - 24px);
   }
 
   .center-page .center-card {
