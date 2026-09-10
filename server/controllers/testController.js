@@ -4,6 +4,7 @@ const Class = require('../models/Class');
 const Question = require('../models/Question');
 const StudentRecord = require('../models/StudentRecord');
 const TestStudent = require('../models/TestStudent');
+const StudentAnswer = require('../models/StudentAnswer');
 
 function randomPassword(length = 8) {
   const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -249,11 +250,22 @@ exports.scoreboard = async (req, res) => {
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
 
   const rows = await TestStudent.find({ test: test._id }).populate('student').sort({ score: -1 });
+  const scores = await Promise.all(rows.map(async (row) => {
+    const answers = await StudentAnswer.find({ testStudent: row._id })
+      .populate('question', 'score')
+      .sort({ createdAt: 1 });
+    const latestByQuestion = new Map();
+    answers.forEach((answer) => latestByQuestion.set(String(answer.question?._id), answer));
+    return [...latestByQuestion.values()].reduce(
+      (sum, answer) => sum + (answer.isCorrect ? (answer.question?.score || 0) : 0),
+      0
+    );
+  }));
   res.json({
     test: { id: test._id, name: test.name, subject: test.subject },
-    rows: rows.map(r => ({
+    rows: rows.map((r, index) => ({
       rollno: r.student?.rollno,
-      score: r.score,
+      score: scores[index],
       submitted: r.submitted,
       violations: r.violations || 0,
       autoSubmitted: r.autoSubmitted || false
