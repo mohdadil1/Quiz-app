@@ -108,7 +108,7 @@ export default function TestDetails() {
       return;
     }
     try {
-      const { data: savedQuestion } = await api.put(`/questions/${editingQuestion._id}`, {
+      await api.put(`/questions/${editingQuestion._id}`, {
         title: editingQuestion.title,
         optionA: editingQuestion.optionA,
         optionB: editingQuestion.optionB,
@@ -120,12 +120,7 @@ export default function TestDetails() {
       });
       setEditingQuestion(null);
       setMsg({ type: 'success', text: 'Question updated successfully' });
-      setTest((currentTest) => currentTest && {
-        ...currentTest,
-        questions: currentTest.questions.map((question) => (
-          question._id === savedQuestion._id ? savedQuestion : question
-        ))
-      });
+      await load();
     } catch (error) {
       setMsg({ type: 'error', text: error?.response?.data?.message || 'Error updating question' });
     }
@@ -304,7 +299,7 @@ export default function TestDetails() {
             <div className="card-header"><h3>Import Spreadsheet</h3></div>
             <div className="card-body">
               <p className="text-muted mb-2">
-                <strong>Columns (no header row):</strong> Question, Option A, Option B, Option C, Option D, Correct Option, Score.
+                    <strong>Columns (no header row):</strong> Question, Option A, Option B, Option C, Option D, Correct Option, Score, Time Limit (minutes).
               </p>
               <p className="text-muted mb-2"><strong>Accepted formats:</strong> .xls, .xlsx, .ods</p>
               <input type="file" ref={fileInputRef} accept=".xls,.xlsx,.ods" className="form-control mb-2" />
