@@ -31,6 +31,10 @@ exports.createQuestion = async (req, res) => {
   if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
     return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
   }
+  const parsedScore = Number(score);
+  if (!Number.isFinite(parsedScore) || parsedScore <= 0) {
+    return res.status(400).json({ message: 'score must be greater than 0' });
+  }
 
   const q = await Question.create({
     test: test._id,
@@ -40,7 +44,7 @@ exports.createQuestion = async (req, res) => {
     optionC,
     optionD,
     correctAns: ans,
-    score,
+    score: parsedScore,
     timeLimit: parsedTimeLimit
   });
   res.status(201).json(q);
@@ -64,6 +68,10 @@ exports.updateQuestion = async (req, res) => {
   if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
     return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
   }
+  const parsedScore = Number(score);
+  if (!Number.isFinite(parsedScore) || parsedScore <= 0) {
+    return res.status(400).json({ message: 'score must be greater than 0' });
+  }
 
   q.title = title;
   q.optionA = optionA;
@@ -71,7 +79,7 @@ exports.updateQuestion = async (req, res) => {
   q.optionC = optionC;
   q.optionD = optionD;
   q.correctAns = ans;
-  q.score = score;
+  q.score = parsedScore;
   q.timeLimit = parsedTimeLimit;
   await q.save();
 
@@ -117,7 +125,7 @@ exports.uploadQuestions = async (req, res) => {
 
     const correctAns = normalizeCorrect(correctRaw);
     const score = Number(scoreRaw);
-    if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || !Number.isFinite(score)) {
+    if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || !Number.isFinite(score) || score <= 0) {
       errors.push({ row: i + 1, reason: 'Invalid or missing fields' });
       continue;
     }

@@ -51,7 +51,9 @@ export default function MockResults() {
     );
   }
 
-  const percentage = Math.round((results.score / results.totalQuestions) * 100);
+  const percentage = results.totalMarks > 0
+    ? Math.round((results.score / results.totalMarks) * 100)
+    : 0;
 
   return (
     <div className="student-page">
@@ -69,7 +71,7 @@ export default function MockResults() {
         >
           <h2 style={{ margin: 0, color: '#1976d2', fontSize: '3rem' }}>{percentage}%</h2>
           <p style={{ margin: '8px 0 0 0', color: '#666', fontSize: 14 }}>
-            You scored <strong>{results.score}</strong> out of <strong>{results.totalQuestions}</strong> points
+            You scored <strong>{results.score}</strong> out of <strong>{results.totalMarks}</strong> points
           </p>
         </div>
 

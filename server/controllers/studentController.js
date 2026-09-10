@@ -169,6 +169,11 @@ exports.getQuestions = async (req, res) => {
  */
 exports.submitAnswer = async (req, res) => {
   const { questionId, selectedOption } = req.body;
+  const picked = String(selectedOption || '').toLowerCase();
+  if (!['a', 'b', 'c', 'd'].includes(picked)) {
+    return res.status(400).json({ message: 'selectedOption must be A, B, C or D' });
+  }
+
   const ts = await TestStudent.findById(req.user.testStudentId);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
@@ -179,8 +184,27 @@ exports.submitAnswer = async (req, res) => {
     return res.status(403).json({ message: 'Question not part of your test' });
   }
 
-  const picked = String(selectedOption || '').toLowerCase();
+  const existingAnswer = await StudentAnswer.findOne({ testStudent: ts._id, question: q._id });
+  if (existingAnswer) {
+    return res.json({ correct: existingAnswer.isCorrect, alreadyAnswered: true });
+  }
+
   const correct = picked === q.correctAns;
+
+  try {
+    await StudentAnswer.create({
+      testStudent: ts._id,
+      question: q._id,
+      selectedOption: picked,
+      isCorrect: correct
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      const answer = await StudentAnswer.findOne({ testStudent: ts._id, question: q._id });
+      return res.json({ correct: answer.isCorrect, alreadyAnswered: true });
+    }
+    throw error;
+  }
 
   if (correct) {
     q.correctCount += 1;
@@ -190,14 +214,6 @@ exports.submitAnswer = async (req, res) => {
   }
   await q.save();
   await ts.save();
-
-  // Store the student's answer for mock test review
-  await StudentAnswer.create({
-    testStudent: ts._id,
-    question: q._id,
-    selectedOption: picked,
-    isCorrect: correct
-  });
 
   // Tell the client whether it was right, but not the correct answer
   res.json({ correct });
@@ -266,12 +282,19 @@ exports.getResults = async (req, res) => {
     .populate('question')
     .sort({ createdAt: 1 });
 
-  // Compute score from answers — ts.score is reset to 0 on finish for retake purposes
-  const score = answers.reduce((sum, a) => sum + (a.isCorrect ? (a.question?.score || 0) : 0), 0);
+  const latestAnswers = new Map();
+  answers.forEach((answer) => latestAnswers.set(String(answer.question?._id), answer));
+
+  // Compute score from one answer per question — ts.score is reset to 0 on finish for retake purposes
+  const totalMarks = questions.reduce((sum, question) => sum + (question.score || 0), 0);
+  const score = [...latestAnswers.values()].reduce(
+    (sum, answer) => sum + (answer.isCorrect ? (answer.question?.score || 0) : 0),
+    0
+  );
 
   // Build answer lookup
   const answerMap = {};
-  answers.forEach(a => {
+  latestAnswers.forEach((a) => {
     answerMap[String(a.question._id)] = {
       selected: a.selectedOption,
       isCorrect: a.isCorrect
@@ -294,6 +317,7 @@ exports.getResults = async (req, res) => {
   res.json({
     testName: ts.test.name,
     totalQuestions: questions.length,
+    totalMarks,
     score,
     results
   });

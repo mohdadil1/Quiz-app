@@ -14,4 +14,6 @@ const studentAnswerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+studentAnswerSchema.index({ testStudent: 1, question: 1 }, { unique: true });
+
 module.exports = mongoose.model('StudentAnswer', studentAnswerSchema);
