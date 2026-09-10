@@ -97,7 +97,7 @@ exports.deleteQuestion = async (req, res) => {
 };
 
 // POST /api/questions/upload?testId=... — multipart with "file" containing .xlsx/.xls/.ods
-// Expected columns (no header row): title | A | B | C | D | correct | score
+// Expected columns (no header row): title | A | B | C | D | correct | score | timeLimit
 exports.uploadQuestions = async (req, res) => {
   const { testId } = req.query;
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -120,12 +120,13 @@ exports.uploadQuestions = async (req, res) => {
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
-    const [title, optionA, optionB, optionC, optionD, correctRaw, scoreRaw] = row;
+    const [title, optionA, optionB, optionC, optionD, correctRaw, scoreRaw, timeLimitRaw] = row;
     if (!title && !optionA && !optionB) continue; // skip empty rows
 
     const correctAns = normalizeCorrect(correctRaw);
     const score = Number(scoreRaw);
-    if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || !Number.isFinite(score) || score <= 0) {
+    const timeLimit = timeLimitRaw === '' || timeLimitRaw == null ? 1 : Number(timeLimitRaw);
+    if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || !Number.isFinite(score) || score <= 0 || !Number.isFinite(timeLimit) || timeLimit < 0.25) {
       errors.push({ row: i + 1, reason: 'Invalid or missing fields' });
       continue;
     }
@@ -138,7 +139,8 @@ exports.uploadQuestions = async (req, res) => {
       optionC: String(optionC),
       optionD: String(optionD),
       correctAns,
-      score
+      score,
+      timeLimit
     });
     created.push(q._id);
   }
