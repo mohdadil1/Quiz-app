@@ -257,9 +257,17 @@ exports.logViolation = async (req, res) => {
     return res.json({ violations: 0, submitted: false });
   }
 
-  ts.violations = (ts.violations || 0) + 1;
-  await ts.save();
-  res.json({ violations: ts.violations });
+  const updated = await TestStudent.findOneAndUpdate(
+    { _id: ts._id, submitted: false },
+    { $inc: { violations: 1 } },
+    { new: true }
+  );
+
+  if (!updated) {
+    return res.json({ violations: ts.violations || 0, submitted: true });
+  }
+
+  res.json({ violations: updated.violations });
 };
 
 /**

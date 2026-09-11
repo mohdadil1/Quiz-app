@@ -32,8 +32,8 @@ export default function StudentCredentials() {
   };
 
   const handleDownloadCSV = () => {
-    const header = 'Roll Number,Name,Password\n';
-    const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password}`).join('\n');
+    const header = 'Roll Number,Name,Password,Violations\n';
+    const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0}`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,6 +101,7 @@ export default function StudentCredentials() {
                     <th>Status</th>
                     <th>Score</th>
                     <th>Actions</th>
+                    <th>Violations</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -121,6 +122,7 @@ export default function StudentCredentials() {
                             r.rollno
                           )}
                         </td>
+                        <td>{r.violations || 0}</td>
                         <td>
                           {isEditing ? (
                             <input
