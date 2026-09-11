@@ -1073,6 +1073,33 @@ body.student-theme {
   font-size: 0.95rem;
   color: var(--text);
 }
+.quiz-camera {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.quiz-camera video {
+  width: 96px;
+  height: 64px;
+  object-fit: cover;
+  border: 2px solid var(--success);
+  border-radius: 8px;
+  background: #111;
+  transform: scaleX(-1);
+}
+.quiz-camera-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--success);
+  vertical-align: middle;
+}
 
 /* Circular SVG timer */
 .quiz-timer {
