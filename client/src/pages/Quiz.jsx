@@ -32,6 +32,8 @@ export default function Quiz() {
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
+  const [cameraError, setCameraError] = useState('');
+  const [cameraReady, setCameraReady] = useState(false);
   const [started, setStarted] = useState(false); // show "Start" screen first (needed for fullscreen)
 
   // Per-question timer (in seconds remaining)
@@ -46,10 +48,25 @@ export default function Quiz() {
   const questionsLoadStartedRef = useRef(false);
   const lastViolationAtRef = useRef(0);
   const enteredFullscreenRef = useRef(false);
+  const videoRef = useRef(null);
+  const cameraStreamRef = useRef(null);
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const isMock = user?.testMode === 'MOCK';
+
+  const stopCamera = useCallback(() => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    cameraStreamRef.current = null;
+    setCameraReady(false);
+  }, []);
+
+  useEffect(() => stopCamera, [stopCamera]);
+
+  useEffect(() => {
+    if (!videoRef.current || !cameraStreamRef.current) return;
+    videoRef.current.srcObject = cameraStreamRef.current;
+  }, [cameraReady, started]);
 
   // -------- Load questions --------
   useEffect(() => {
@@ -79,6 +96,7 @@ export default function Quiz() {
       const exitFullscreen = document.exitFullscreen || document.webkitExitFullscreen;
       exitFullscreen?.call(document).catch?.(() => {});
     }
+    stopCamera();
 
     try {
       await api.post('/students/quiz/finish', { aborted, autoSubmitted });
@@ -93,7 +111,7 @@ export default function Quiz() {
         state: { status: autoSubmitted ? 'Auto-submitted (too many violations)' : aborted ? 'Aborted' : 'Completed' }
       });
     }
-  }, [logout, navigate, isMock]);
+  }, [logout, navigate, isMock, stopCamera]);
 
   // -------- Answer / skip a question --------
   // `option` is 'a'|'b'|'c'|'d' for an answer, or null for a timeout-skip.
@@ -186,6 +204,20 @@ export default function Quiz() {
     }
   }, [isMock, started, finish]);
 
+  // -------- Anti-cheat: camera track --------
+  useEffect(() => {
+    if (isMock || !started || !cameraStreamRef.current) return;
+    const track = cameraStreamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
+    const onCameraEnded = () => {
+      setCameraReady(false);
+      handleViolation('camera-disabled');
+    };
+    track.addEventListener('ended', onCameraEnded);
+    return () => track.removeEventListener('ended', onCameraEnded);
+  }, [isMock, started, cameraReady, handleViolation]);
+
   // -------- Anti-cheat: tab switch --------
   useEffect(() => {
     if (isMock || !started) return;
@@ -273,6 +305,21 @@ export default function Quiz() {
       return;
     }
 
+    setCameraError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('A webcam is required, but this browser does not support camera access.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      cameraStreamRef.current = stream;
+      setCameraReady(true);
+    } catch {
+      setCameraError('Camera access is required to start this proctored test. Allow camera access and try again.');
+      return;
+    }
+
     const el = document.documentElement;
     const requestFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!requestFullscreen) {
@@ -340,6 +387,7 @@ export default function Quiz() {
             <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
               <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
               <li>The test will run in <strong>fullscreen mode</strong>.</li>
+              <li>A webcam is required and must remain enabled during the test.</li>
               <li><strong>Do not</strong> switch tabs, minimize, or exit fullscreen.</li>
               <li>Right-click, copy, and developer tools are disabled.</li>
               <li>
@@ -350,6 +398,7 @@ export default function Quiz() {
             </ul>
           )}
           {fullscreenError && <div className="alert alert-error">{fullscreenError}</div>}
+          {cameraError && <div className="alert alert-error">{cameraError}</div>}
           <button className="btn btn-primary btn-block" onClick={handleStart}>
             I understand — Start Test
           </button>
@@ -416,6 +465,13 @@ export default function Quiz() {
             )}
           </div>
         </div>
+
+        {!isMock && (
+          <div className="quiz-camera" title="Webcam proctoring is active">
+            <video ref={videoRef} autoPlay muted playsInline />
+            <span><span className="quiz-camera-dot" /> Camera active</span>
+          </div>
+        )}
 
         {!isMock ? (
           <div className={`quiz-timer quiz-timer-${timerLevel}`}>

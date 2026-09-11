@@ -6,7 +6,8 @@ import TeacherLayout from '../components/TeacherLayout';
 function describeViolation(type) {
   return {
     'tab-switch': 'Switched browser tab or window',
-    'fullscreen-exit': 'Exited fullscreen mode'
+    'fullscreen-exit': 'Exited fullscreen mode',
+    'camera-disabled': 'Camera was disabled or disconnected'
   }[type] || type || 'Unknown violation';
 }
 
