@@ -21,7 +21,8 @@ const testSchema = new mongoose.Schema(
       type: String,
       enum: ['STANDARD', 'MOCK'],
       default: 'STANDARD'
-    }
+    },
+    webcamProctoring: { type: Boolean, default: true }
   },
   { timestamps: true }
 );

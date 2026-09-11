@@ -12,6 +12,7 @@ export default function NewTest() {
     totalQuestions: '',
     status: 'PENDING',
     mode: 'STANDARD',
+    webcamProctoring: true,
     classId: ''
   });
   const [err, setErr] = useState('');
@@ -81,6 +82,14 @@ export default function NewTest() {
                 </select>
               </div>
             </div>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={form.webcamProctoring}
+                onChange={(e) => setForm({ ...form, webcamProctoring: e.target.checked })}
+              />
+              <span>Enable webcam proctoring for this test</span>
+            </label>
             <div className="row row-2">
               <div className="form-group">
                 <label>Class</label>

@@ -45,7 +45,7 @@ exports.getTest = async (req, res) => {
 
 // POST /api/tests — create a new test; also seeds TestStudent rows for every student in the class
 exports.createTest = async (req, res) => {
-  const { name, subject, date, totalQuestions, status, classId, mode } = req.body;
+  const { name, subject, date, totalQuestions, status, classId, mode, webcamProctoring } = req.body;
   if (!name || !subject || !date || !totalQuestions || !status || !classId) {
     return res.status(400).json({ message: 'Missing required fields' });
   }
@@ -63,7 +63,8 @@ exports.createTest = async (req, res) => {
     totalQuestions,
     class: cls._id,
     status,
-    mode: mode === 'MOCK' ? 'MOCK' : 'STANDARD'
+    mode: mode === 'MOCK' ? 'MOCK' : 'STANDARD',
+    webcamProctoring: webcamProctoring !== false
   });
 
   // Create per-test student rows for every student record in this class
@@ -86,7 +87,7 @@ exports.updateTest = async (req, res) => {
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
 
-  const { name, subject, date, totalQuestions, status, mode } = req.body;
+  const { name, subject, date, totalQuestions, status, mode, webcamProctoring } = req.body;
   if (name !== undefined) test.name = name;
   if (subject !== undefined) test.subject = subject;
   if (date !== undefined) test.date = date;
@@ -103,6 +104,7 @@ exports.updateTest = async (req, res) => {
     }
     test.mode = mode;
   }
+  if (webcamProctoring !== undefined) test.webcamProctoring = webcamProctoring === true;
   await test.save();
   res.json(test);
 };
