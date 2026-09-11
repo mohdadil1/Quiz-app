@@ -186,7 +186,8 @@ exports.listCredentials = async (req, res) => {
     submitted: r.submitted,
     active: r.active,
     started: r.started,
-    violations: r.violations || 0
+    violations: r.violations || 0,
+    violationTypes: r.violationTypes || []
   })));
 };
 
@@ -270,6 +271,7 @@ exports.scoreboard = async (req, res) => {
       score: scores[index],
       submitted: r.submitted,
       violations: r.violations || 0,
+      violationTypes: r.violationTypes || [],
       autoSubmitted: r.autoSubmitted || false
     }))
   });

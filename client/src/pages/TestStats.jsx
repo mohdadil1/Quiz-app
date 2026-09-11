@@ -3,6 +3,13 @@ import { Link, useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 
+function describeViolation(type) {
+  return {
+    'tab-switch': 'Switched browser tab or window',
+    'fullscreen-exit': 'Exited fullscreen mode'
+  }[type] || type || 'Unknown violation';
+}
+
 export default function TestStats() {
   const { id } = useParams();
   const [data, setData] = useState(null);
@@ -43,6 +50,7 @@ export default function TestStats() {
                     <th>Score</th>
                     <th>Submitted?</th>
                     <th>Violations</th>
+                    <th>Violation Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -65,6 +73,7 @@ export default function TestStats() {
                           <span className="badge badge-pending">No</span>
                         )}
                       </td>
+                      <td>{(r.violationTypes || []).length ? r.violationTypes.map(describeViolation).join(', ') : '—'}</td>
                       <td>
                         {r.violations > 0 ? (
                           <span style={{ color: 'var(--danger)', fontWeight: 600 }}>

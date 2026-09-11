@@ -3,6 +3,13 @@ import { useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 
+function describeViolation(type) {
+  return {
+    'tab-switch': 'Switched browser tab or window',
+    'fullscreen-exit': 'Exited fullscreen mode'
+  }[type] || type || 'Unknown violation';
+}
+
 export default function StudentCredentials() {
   const { id } = useParams();
   const [rows, setRows] = useState([]);
@@ -32,8 +39,8 @@ export default function StudentCredentials() {
   };
 
   const handleDownloadCSV = () => {
-    const header = 'Roll Number,Name,Password,Violations\n';
-    const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0}`).join('\n');
+    const header = 'Roll Number,Name,Password,Violations,Violation Details\n';
+    const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -102,6 +109,7 @@ export default function StudentCredentials() {
                     <th>Score</th>
                     <th>Actions</th>
                     <th>Violations</th>
+                    <th>Violation Details</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,7 +130,6 @@ export default function StudentCredentials() {
                             r.rollno
                           )}
                         </td>
-                        <td>{r.violations || 0}</td>
                         <td>
                           {isEditing ? (
                             <input
@@ -228,6 +235,8 @@ export default function StudentCredentials() {
                             </div>
                           )}
                         </td>
+                        <td>{r.violations || 0}</td>
+                        <td>{(r.violationTypes || []).length ? r.violationTypes.map(describeViolation).join(', ') : '—'}</td>
                       </tr>
                     );
                   })}
