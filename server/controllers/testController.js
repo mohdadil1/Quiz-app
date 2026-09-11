@@ -185,7 +185,8 @@ exports.listCredentials = async (req, res) => {
     score: r.score,
     submitted: r.submitted,
     active: r.active,
-    started: r.started
+    started: r.started,
+    violations: r.violations || 0
   })));
 };
 
@@ -265,6 +266,7 @@ exports.scoreboard = async (req, res) => {
     test: { id: test._id, name: test.name, subject: test.subject },
     rows: rows.map((r, index) => ({
       rollno: r.student?.rollno,
+      name: r.student?.name || '',
       score: scores[index],
       submitted: r.submitted,
       violations: r.violations || 0,

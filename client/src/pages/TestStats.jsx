@@ -39,6 +39,7 @@ export default function TestStats() {
                   <tr>
                     <th>#</th>
                     <th>Roll No</th>
+                    <th>Name</th>
                     <th>Score</th>
                     <th>Submitted?</th>
                     <th>Violations</th>
@@ -49,6 +50,7 @@ export default function TestStats() {
                     <tr key={i}>
                       <td>{i + 1}</td>
                       <td>{r.rollno}</td>
+                      <td>{r.name || '—'}</td>
                       <td>{r.score}</td>
                       <td>
                         {r.submitted ? (

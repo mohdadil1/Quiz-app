@@ -43,6 +43,9 @@ export default function Quiz() {
   const submittingRef = useRef(false); // guard against double-skip from timer + click
   const idxRef = useRef(0);
   const timerDeadlineRef = useRef(null);
+  const questionsLoadStartedRef = useRef(false);
+  const lastViolationAtRef = useRef(0);
+  const enteredFullscreenRef = useRef(false);
 
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -50,6 +53,9 @@ export default function Quiz() {
 
   // -------- Load questions --------
   useEffect(() => {
+    if (questionsLoadStartedRef.current) return undefined;
+    questionsLoadStartedRef.current = true;
+
     (async () => {
       try {
         const { data } = await api.get('/students/quiz/questions');
@@ -156,37 +162,42 @@ export default function Quiz() {
   const handleViolation = useCallback(async (reason) => {
     if (isMock || finishedRef.current || !started) return;
 
+    // A single tab/fullscreen transition can emit more than one browser event.
+    const now = Date.now();
+    if (now - lastViolationAtRef.current < 1000) return;
+    lastViolationAtRef.current = now;
+
     warningsRef.current += 1;
     const count = warningsRef.current;
     setWarnings(count);
     setShowWarning(true);
 
     // Fire-and-forget: log it on the server so the teacher can see
+    let recordedCount = count;
     try {
-      await api.post('/students/quiz/violation', { type: reason });
+      const { data } = await api.post('/students/quiz/violation', { type: reason });
+      recordedCount = Number(data?.violations) || count;
+      setWarnings(recordedCount);
     } catch (e) { /* non-fatal */ }
 
-    if (count >= MAX_WARNINGS) {
-      alert(`You have violated the test rules ${count} times. Your test will be auto-submitted.`);
+    if (recordedCount >= MAX_WARNINGS) {
+      alert(`You have violated the test rules ${recordedCount} times. Your test will be auto-submitted.`);
       finish(true, true);
     }
   }, [isMock, started, finish]);
 
-  // -------- Anti-cheat: tab switch / window blur --------
+  // -------- Anti-cheat: tab switch --------
   useEffect(() => {
     if (isMock || !started) return;
 
     const onVisibilityChange = () => {
       if (document.hidden) handleViolation('tab-switch');
     };
-    const onBlur = () => handleViolation('window-blur');
 
     document.addEventListener('visibilitychange', onVisibilityChange);
-    window.addEventListener('blur', onBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      window.removeEventListener('blur', onBlur);
     };
   }, [isMock, started, handleViolation]);
 
@@ -195,7 +206,7 @@ export default function Quiz() {
     if (isMock || !started) return;
 
     const onFullscreenChange = () => {
-      if (!getFullscreenElement() && !finishedRef.current) {
+      if (!getFullscreenElement() && enteredFullscreenRef.current && !finishedRef.current) {
         handleViolation('fullscreen-exit');
       }
     };
@@ -274,6 +285,7 @@ export default function Quiz() {
     try {
       await requestFullscreen.call(el, { navigationUI: 'hide' });
       if (!getFullscreenElement()) throw new Error('Fullscreen request was not accepted');
+      enteredFullscreenRef.current = true;
       setStarted(true);
     } catch {
       setFullscreenError('Fullscreen permission was unavailable. The test will continue with tab and window monitoring.');
