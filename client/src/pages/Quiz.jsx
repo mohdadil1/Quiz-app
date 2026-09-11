@@ -54,6 +54,7 @@ export default function Quiz() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const isMock = user?.testMode === 'MOCK';
+  const webcamRequired = !isMock && user?.webcamProctoring !== false;
 
   const stopCamera = useCallback(() => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -206,7 +207,7 @@ export default function Quiz() {
 
   // -------- Anti-cheat: camera track --------
   useEffect(() => {
-    if (isMock || !started || !cameraStreamRef.current) return;
+    if (!webcamRequired || !started || !cameraStreamRef.current) return;
     const track = cameraStreamRef.current.getVideoTracks()[0];
     if (!track) return;
 
@@ -216,7 +217,7 @@ export default function Quiz() {
     };
     track.addEventListener('ended', onCameraEnded);
     return () => track.removeEventListener('ended', onCameraEnded);
-  }, [isMock, started, cameraReady, handleViolation]);
+  }, [webcamRequired, started, cameraReady, handleViolation]);
 
   // -------- Anti-cheat: tab switch --------
   useEffect(() => {
@@ -305,19 +306,21 @@ export default function Quiz() {
       return;
     }
 
-    setCameraError('');
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError('A webcam is required, but this browser does not support camera access.');
-      return;
-    }
+    if (webcamRequired) {
+      setCameraError('');
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError('A webcam is required, but this browser does not support camera access.');
+        return;
+      }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-      cameraStreamRef.current = stream;
-      setCameraReady(true);
-    } catch {
-      setCameraError('Camera access is required to start this proctored test. Allow camera access and try again.');
-      return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        cameraStreamRef.current = stream;
+        setCameraReady(true);
+      } catch {
+        setCameraError('Camera access is required to start this proctored test. Allow camera access and try again.');
+        return;
+      }
     }
 
     const el = document.documentElement;
@@ -387,7 +390,7 @@ export default function Quiz() {
             <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
               <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
               <li>The test will run in <strong>fullscreen mode</strong>.</li>
-              <li>A webcam is required and must remain enabled during the test.</li>
+              {webcamRequired && <li>A webcam is required and must remain enabled during the test.</li>}
               <li><strong>Do not</strong> switch tabs, minimize, or exit fullscreen.</li>
               <li>Right-click, copy, and developer tools are disabled.</li>
               <li>
@@ -466,7 +469,7 @@ export default function Quiz() {
           </div>
         </div>
 
-        {!isMock && (
+        {webcamRequired && (
           <div className="quiz-camera" title="Webcam proctoring is active">
             <video ref={videoRef} autoPlay muted playsInline />
             <span><span className="quiz-camera-dot" /> Camera active</span>

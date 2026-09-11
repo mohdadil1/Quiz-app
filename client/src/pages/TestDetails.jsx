@@ -44,7 +44,8 @@ export default function TestDetails() {
         date: test.date,
         totalQuestions: test.totalQuestions,
         status: test.status,
-        mode: test.mode
+        mode: test.mode,
+        webcamProctoring: test.webcamProctoring !== false
       });
       setMsg({ type: 'success', text: 'General settings updated successfully' });
     } catch {
@@ -178,6 +179,14 @@ export default function TestDetails() {
                 <label>Total questions</label>
                 <input type="number" min="1" className="form-control" value={test.totalQuestions} onChange={(e) => setTest({ ...test, totalQuestions: Number(e.target.value) })} />
               </div>
+            <label className="form-check">
+              <input
+                type="checkbox"
+                checked={test.webcamProctoring !== false}
+                onChange={(e) => setTest({ ...test, webcamProctoring: e.target.checked })}
+              />
+              <span>Enable webcam proctoring for this test</span>
+            </label>
               <div className="form-group">
                 <label>Status</label>
                 <select className="form-control" value={test.status} onChange={(e) => setTest({ ...test, status: e.target.value })}>

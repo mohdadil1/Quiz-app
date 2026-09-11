@@ -36,7 +36,8 @@ export default function StudentLogin() {
         testId: data.testId,
         testName: data.testName,
         testStatus: data.testStatus,
-        testMode: data.testMode
+        testMode: data.testMode,
+        webcamProctoring: data.webcamProctoring !== false
       });
       navigate('/student/dashboard');
     } catch (e) {

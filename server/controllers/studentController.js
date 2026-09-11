@@ -102,7 +102,8 @@ exports.login = async (req, res) => {
     testId: ts.test._id,
     testName: ts.test.name,
     testStatus: ts.test.status,
-    testMode: ts.test.mode
+    testMode: ts.test.mode,
+    webcamProctoring: ts.test.webcamProctoring !== false
   });
 };
 
