@@ -47,6 +47,7 @@ exports.login = async (req, res) => {
     ts.completedOnce = false; // reset so dashboard shows "Start Test" instead of "Test completed"
     ts.score = 0;
     ts.violations = 0;
+    ts.violationTypes = [];
     ts.autoSubmitted = false;
     ts.started = false;
     await StudentAnswer.deleteMany({ testStudent: ts._id });
@@ -259,7 +260,7 @@ exports.logViolation = async (req, res) => {
 
   const updated = await TestStudent.findOneAndUpdate(
     { _id: ts._id, submitted: false },
-    { $inc: { violations: 1 } },
+    { $inc: { violations: 1 }, $push: { violationTypes: type || 'unknown' } },
     { new: true }
   );
 

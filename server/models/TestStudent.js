@@ -13,6 +13,7 @@ const testStudentSchema = new mongoose.Schema(
     score: { type: Number, default: 0 },
     submitted: { type: Boolean, default: false },
     violations: { type: Number, default: 0 },
+    violationTypes: { type: [String], default: [] },
     autoSubmitted: { type: Boolean, default: false },
     deviceInfo: {
       userAgent: { type: String },
