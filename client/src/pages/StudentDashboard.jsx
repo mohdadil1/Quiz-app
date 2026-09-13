@@ -117,7 +117,7 @@ export default function StudentDashboard() {
                   </div>
                   <div className="meta-item">
                     <span className="meta-label">Per question</span>
-                    <span className="meta-value">1:00 min</span>
+                    <span className="meta-value">Varies</span>
                   </div>
                 </div>
 
@@ -129,7 +129,7 @@ export default function StudentDashboard() {
                   </ul>
                 ) : (
                   <ul className="student-instructions">
-                    <li>You have <strong>1 minute</strong> per question.</li>
+                    <li>Each question has its <strong>own time limit</strong> — check the timer on screen.</li>
                     <li>The test runs in fullscreen. Don't switch tabs.</li>
                     <li>You'll get 3 warnings before auto-submit.</li>
                   </ul>
