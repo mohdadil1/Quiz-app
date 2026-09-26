@@ -17,10 +17,17 @@ export default function TestStats() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/tests/${id}/scoreboard`)
-      .then((r) => setData(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = (showLoading) => {
+      if (showLoading) setLoading(true);
+      api.get(`/tests/${id}/scoreboard`)
+        .then((r) => { if (!cancelled) setData(r.data); })
+        .catch(() => {})
+        .finally(() => { if (!cancelled && showLoading) setLoading(false); });
+    };
+    load(true);
+    const intervalId = setInterval(() => load(false), 5000);
+    return () => { cancelled = true; clearInterval(intervalId); };
   }, [id]);
 
   if (loading) return <TeacherLayout title="Test Statistics"><div className="empty-state">Loading…</div></TeacherLayout>;
