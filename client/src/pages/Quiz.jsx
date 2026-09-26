@@ -32,6 +32,7 @@ export default function Quiz() {
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
+  const [outOfFullscreen, setOutOfFullscreen] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [started, setStarted] = useState(false); // show "Start" screen first (needed for fullscreen)
@@ -200,7 +201,8 @@ export default function Quiz() {
     } catch (e) { /* non-fatal */ }
 
     if (recordedCount >= MAX_WARNINGS) {
-      alert(`You have violated the test rules ${recordedCount} times. Your test will be auto-submitted.`);
+      // Submit immediately — an alert() here would block the JS thread (and the
+      // finish request) until dismissed, and the student could close the tab first.
       finish(true, true);
     }
   }, [isMock, started, finish]);
@@ -239,8 +241,12 @@ export default function Quiz() {
     if (isMock || !started) return;
 
     const onFullscreenChange = () => {
-      if (!getFullscreenElement() && enteredFullscreenRef.current && !finishedRef.current) {
+      if (finishedRef.current) return;
+      if (!getFullscreenElement() && enteredFullscreenRef.current) {
+        setOutOfFullscreen(true);
         handleViolation('fullscreen-exit');
+      } else if (getFullscreenElement()) {
+        setOutOfFullscreen(false);
       }
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -340,6 +346,21 @@ export default function Quiz() {
     } catch {
       setFullscreenError('Fullscreen permission was unavailable. The test will continue with tab and window monitoring.');
       setStarted(true);
+    }
+  };
+
+  const handleResumeFullscreen = async () => {
+    const el = document.documentElement;
+    const requestFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (!requestFullscreen) {
+      setOutOfFullscreen(false);
+      return;
+    }
+    try {
+      await requestFullscreen.call(el, { navigationUI: 'hide' });
+      if (getFullscreenElement()) setOutOfFullscreen(false);
+    } catch {
+      // Stay blocked — the student must click again to grant fullscreen.
     }
   };
 
@@ -452,6 +473,27 @@ export default function Quiz() {
         </div>
       )}
 
+      {outOfFullscreen && !isMock && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 100, textAlign: 'center', padding: 20
+          }}
+        >
+          <div className="quiz-card" style={{ maxWidth: 420 }}>
+            <h3 style={{ color: 'var(--danger)', marginBottom: 8 }}>You left fullscreen mode</h3>
+            <p className="text-muted mb-2">
+              This is a recorded violation. You must return to fullscreen to keep answering questions.
+              The countdown for this question keeps running while you're out.
+            </p>
+            <button className="btn btn-primary btn-block" onClick={handleResumeFullscreen}>
+              Resume Fullscreen
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header bar: progress + timer + abort */}
       <div className="quiz-header-bar">
         <div className="quiz-header-info">
@@ -526,7 +568,7 @@ export default function Quiz() {
                   key={opt.letter}
                   className={`option-btn ${selected === opt.letter ? 'is-selected' : ''}`}
                   onClick={() => submitAnswerOrSkip(opt.letter)}
-                  disabled={submitting}
+                  disabled={submitting || outOfFullscreen}
                 >
                   <span className="option-letter">{opt.letter.toUpperCase()}</span>
                   <span className="option-text">{opt.text}</span>

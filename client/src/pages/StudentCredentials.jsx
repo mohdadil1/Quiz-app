@@ -22,10 +22,17 @@ export default function StudentCredentials() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    api.get(`/tests/${id}/credentials`)
-      .then((r) => setRows(r.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    let cancelled = false;
+    const load = (showLoading) => {
+      if (showLoading) setLoading(true);
+      api.get(`/tests/${id}/credentials`)
+        .then((r) => { if (!cancelled) setRows(r.data); })
+        .catch(() => {})
+        .finally(() => { if (!cancelled && showLoading) setLoading(false); });
+    };
+    load(true);
+    const intervalId = setInterval(() => load(false), 5000);
+    return () => { cancelled = true; clearInterval(intervalId); };
   }, [id]);
 
   const handlePrint = () => window.print();

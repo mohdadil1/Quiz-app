@@ -252,6 +252,7 @@ exports.finish = async (req, res) => {
  * whether to force-submit.
  */
 exports.logViolation = async (req, res) => {
+  const { type } = req.body;
   const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.json({ violations: ts.violations, submitted: true });
