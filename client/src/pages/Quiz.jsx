@@ -108,6 +108,11 @@ export default function Quiz() {
         if (!data.length) setErr('This test has no questions yet.');
         setQuestions(data);
       } catch (e) {
+        if (e?.response?.status === 410) {
+          // Already submitted — the dashboard shows "test completed"
+          navigate('/student/dashboard', { replace: true });
+          return;
+        }
         setErr(e?.response?.data?.message || 'Could not load questions');
       } finally {
         setLoading(false);

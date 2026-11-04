@@ -37,9 +37,10 @@ exports.login = async (req, res) => {
   }).populate('test');
 
   if (!ts) return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
-  if (ts.submitted && ts.test.mode !== 'MOCK') {
-    return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
-  }
+
+  // A student who already submitted may log back in, but only to see "test completed" —
+  // the quiz endpoints refuse submitted students, and their test entry is left untouched.
+  const alreadySubmitted = ts.submitted && ts.test.mode !== 'MOCK';
 
   // If this is a mock test and the prior attempt was submitted (or completed), reset the row so the student can retry.
   if (ts.test.mode === 'MOCK' && (ts.submitted || ts.completedOnce)) {
@@ -54,8 +55,10 @@ exports.login = async (req, res) => {
     await StudentAnswer.deleteMany({ testStudent: ts._id });
   }
 
-  // For STANDARD tests enforce single-device active lock; skip for MOCK tests
-  if (ts.test.mode !== 'MOCK') {
+  if (alreadySubmitted) {
+    // no device lock, no "active" flag: nothing to protect any more
+  } else if (ts.test.mode !== 'MOCK') {
+    // For STANDARD tests enforce single-device active lock
     // Check if already active from another device
     if (ts.active && deviceInfo && ts.deviceInfo) {
       if (deviceInfo.userAgent !== ts.deviceInfo.userAgent || deviceInfo.platform !== ts.deviceInfo.platform) {
@@ -75,8 +78,10 @@ exports.login = async (req, res) => {
     ts.deviceInfo = undefined;
   }
 
-  ts.started = false;
-  await ts.save();
+  if (!alreadySubmitted) {
+    ts.started = false;
+    await ts.save();
+  }
 
   const token = sign({
     id: ts.student.toString(),
@@ -104,6 +109,7 @@ exports.login = async (req, res) => {
     testName: ts.test.name,
     testStatus: ts.test.status,
     testMode: ts.test.mode,
+    submitted: alreadySubmitted,
     webcamProctoring: ts.test.webcamProctoring !== false,
     timingMode: ts.test.timingMode || 'PER_QUESTION',
     totalTimeMinutes: ts.test.totalTimeMinutes || 30
@@ -129,6 +135,7 @@ exports.dashboard = async (req, res) => {
     totalQuestions: ts.test.totalQuestions,
     running,
     submitted,
+    autoSubmitted: !!ts.autoSubmitted,
     isMock: ts.test.mode === 'MOCK',
     timingMode: ts.test.timingMode || 'PER_QUESTION',
     totalTimeMinutes: ts.test.totalTimeMinutes || 30,
@@ -294,6 +301,10 @@ exports.submitAnswer = async (req, res) => {
 exports.finish = async (req, res) => {
   const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
+  // Already submitted (e.g. logged back in afterwards): keep the original result as it is
+  if (ts.submitted && ts.test.mode !== 'MOCK') {
+    return res.json({ ok: true, alreadySubmitted: true, score: ts.score });
+  }
   if (ts.test.mode !== 'MOCK') {
     ts.submitted = true;
   } else {

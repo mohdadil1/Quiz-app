@@ -85,9 +85,11 @@ export default function StudentDashboard() {
             {info.submitted ? (
               <div className="student-status-box student-status-done">
                 <div className="status-icon">✓</div>
-                <h3>Test completed</h3>
+                <h3>You have completed this test</h3>
                 <p className="text-muted">
-                  You've already submitted <strong>{info.testName}</strong>. Thanks!
+                  Your answers for <strong>{info.testName}</strong> have been submitted
+                  {info.autoSubmitted ? ' (automatically, after too many warnings)' : ''}.
+                  {!isMock && ' You can’t take it again — your teacher will share the results.'}
                 </p>
                 {isMock && (
                   <button
