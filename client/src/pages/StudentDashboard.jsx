@@ -62,7 +62,7 @@ export default function StudentDashboard() {
               <div className="student-greeting">{greeting},</div>
               <div className="student-name">{displayName}</div>
               {user?.rollno != null && (
-                <div className="student-rollno-sub">Roll No: {user.rollno}</div>
+                <div className="student-rollno-sub">USN: {user.rollno}</div>
               )}
             </div>
           </div>

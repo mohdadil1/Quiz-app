@@ -1,10 +1,17 @@
 import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 
-export default function TeacherLayout({ title, children, actions }) {
+export default function TeacherLayout({ title, children, actions, showBack = false }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Go to the previous page, or the dashboard when this page was opened directly
+  const goBack = () => {
+    if (window.history.state?.idx > 0) navigate(-1);
+    else navigate('/admin/dashboard');
+  };
 
   // Auto-close sidebar on route change (covers non-NavLink navigation too)
   useEffect(() => {
@@ -38,6 +45,11 @@ export default function TeacherLayout({ title, children, actions }) {
               <span></span>
               <span></span>
             </button>
+            {showBack && (
+              <button type="button" className="btn btn-secondary btn-sm topbar-back-btn" onClick={goBack} aria-label="Go back">
+                ← Back
+              </button>
+            )}
             <h2>{title}</h2>
           </div>
           {actions && <div className="topbar-right">{actions}</div>}

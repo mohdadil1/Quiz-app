@@ -79,6 +79,15 @@ h1, h2, h3, h4, h5, h6 {
   border-bottom: 1px solid #444;
   color: var(--primary);
 }
+.sidebar-account {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #bbb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sidebar nav {
   margin-top: 16px;
 }
@@ -1100,6 +1109,19 @@ body.student-theme {
   background: var(--success);
   vertical-align: middle;
 }
+.quiz-camera--alert {
+  color: var(--danger);
+}
+.quiz-camera--alert video {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(255, 54, 54, 0.25);
+}
+.quiz-camera--alert .quiz-camera-dot {
+  background: var(--danger);
+}
+.quiz-camera--muted .quiz-camera-dot {
+  background: var(--text-muted);
+}
 
 /* Circular SVG timer */
 .quiz-timer {
@@ -1328,4 +1350,11 @@ body.student-theme {
 @media (min-width: 1200px) {
   .quiz-container { max-width: 920px; }
   .student-dashboard-card { max-width: 620px; }
+}
+
+/* Phones use the browser/OS back gesture — hide the topbar Back button */
+@media (max-width: 640px) {
+  .topbar-back-btn {
+    display: none;
+  }
 }

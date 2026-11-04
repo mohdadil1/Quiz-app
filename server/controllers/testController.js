@@ -6,6 +6,17 @@ const StudentRecord = require('../models/StudentRecord');
 const TestStudent = require('../models/TestStudent');
 const StudentAnswer = require('../models/StudentAnswer');
 
+const USN_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+// Delete guest (classless) student records, keeping any still enrolled in another test
+async function deleteUnusedGuests(studentIds) {
+  if (!studentIds.length) return;
+  const stillUsed = await TestStudent.distinct('student', { student: { $in: studentIds } });
+  const usedSet = new Set(stillUsed.map(String));
+  const unused = studentIds.filter((sid) => !usedSet.has(String(sid)));
+  if (unused.length) await StudentRecord.deleteMany({ _id: { $in: unused }, class: null });
+}
+
 function randomPassword(length = 8) {
   const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let out = '';
@@ -52,7 +63,7 @@ exports.createTest = async (req, res) => {
   if (!['PENDING', 'RUNNING'].includes(status)) {
     return res.status(400).json({ message: 'status must be PENDING or RUNNING on create' });
   }
-  const cls = await Class.findById(classId);
+  const cls = await Class.findOne({ _id: classId, teacher: req.user.id });
   if (!cls) return res.status(404).json({ message: 'Class not found' });
 
   const test = await Test.create({
@@ -133,9 +144,7 @@ exports.deleteTest = async (req, res) => {
 
   await Question.deleteMany({ test: test._id });
   await TestStudent.deleteMany({ test: test._id });
-  if (guestStudentIds.length) {
-    await StudentRecord.deleteMany({ _id: { $in: guestStudentIds } });
-  }
+  await deleteUnusedGuests(guestStudentIds);
   await test.deleteOne();
 
   res.json({ ok: true });
@@ -150,9 +159,9 @@ exports.addGuestStudent = async (req, res) => {
   const { rollno, name } = req.body;
   if (!rollno) return res.status(400).json({ message: 'rollno required' });
 
-  // Reuse existing guest record for this rollno to avoid duplicate key on (rollno, class=null)
+  // Reuse this teacher's existing guest record for the USN (guests are private per teacher)
   const student = await StudentRecord.findOneAndUpdate(
-    { rollno: Number(rollno), class: null },
+    { rollno: String(rollno).trim().toUpperCase(), class: null, teacher: test.teacher },
     { $set: { name: name ? String(name).trim() : null } },
     { upsert: true, new: true }
   );
@@ -177,7 +186,9 @@ exports.listCredentials = async (req, res) => {
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
 
-  const rows = await TestStudent.find({ test: test._id }).populate('student').sort({ createdAt: 1 });
+  const rows = await TestStudent.find({ test: test._id }).populate('student');
+  // USN ascending, natural order (1AB21CS2 before 1AB21CS10)
+  rows.sort((a, b) => USN_COLLATOR.compare(a.student?.rollno ?? '', b.student?.rollno ?? ''));
   res.json(rows.map(r => ({
     testStudentId: r._id,
     studentId: r.student?._id,
@@ -210,7 +221,7 @@ exports.updateStudentRecord = async (req, res) => {
   const student = await StudentRecord.findById(studentId);
   if (!student) return res.status(404).json({ message: 'Student record not found' });
 
-  if (rollno != null) student.rollno = Number(rollno);
+  if (rollno != null) student.rollno = String(rollno);
   if (name != null) student.name = String(name).trim() || null;
 
   try {
@@ -241,7 +252,7 @@ exports.deleteStudentRecord = async (req, res) => {
   const studentToDelete = testStudent.student?._id;
   await TestStudent.deleteOne({ _id: testStudent._id });
   if (isGuest && studentToDelete) {
-    await StudentRecord.deleteOne({ _id: studentToDelete });
+    await deleteUnusedGuests([studentToDelete]);
   }
 
   res.json({ testStudentId: testStudent._id, studentId: studentToDelete });
@@ -268,6 +279,7 @@ exports.scoreboard = async (req, res) => {
   res.json({
     test: { id: test._id, name: test.name, subject: test.subject },
     rows: rows.map((r, index) => ({
+      testStudentId: r._id,
       rollno: r.student?.rollno,
       name: r.student?.name || '',
       score: scores[index],
@@ -276,6 +288,51 @@ exports.scoreboard = async (req, res) => {
       violationTypes: r.violationTypes || [],
       autoSubmitted: r.autoSubmitted || false
     }))
+  });
+};
+
+// GET /api/tests/:id/students/:testStudentId/answers — one student's answer for every question
+exports.studentAnswers = async (req, res) => {
+  const test = await Test.findById(req.params.id);
+  if (!test) return res.status(404).json({ message: 'Not found' });
+  if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+
+  const ts = await TestStudent.findOne({ _id: req.params.testStudentId, test: test._id }).populate('student');
+  if (!ts) return res.status(404).json({ message: 'Student not found for this test' });
+
+  const questions = await Question.find({ test: test._id }).sort({ createdAt: 1 });
+  const answers = await StudentAnswer.find({ testStudent: ts._id }).sort({ createdAt: 1 });
+  const answerByQuestion = new Map();
+  answers.forEach((a) => answerByQuestion.set(String(a.question), a));
+
+  let score = 0;
+  let maxScore = 0;
+  const rows = questions.map((q) => {
+    const answer = answerByQuestion.get(String(q._id));
+    maxScore += q.score || 0;
+    if (answer?.isCorrect) score += q.score || 0;
+    return {
+      id: q._id,
+      title: q.title,
+      options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
+      correctAns: q.correctAns,
+      selectedOption: answer?.selectedOption || null,
+      isCorrect: answer ? answer.isCorrect : null,
+      score: q.score
+    };
+  });
+
+  res.json({
+    test: { id: test._id, name: test.name, subject: test.subject },
+    student: {
+      rollno: ts.student?.rollno,
+      name: ts.student?.name || '',
+      submitted: ts.submitted,
+      autoSubmitted: ts.autoSubmitted || false
+    },
+    score,
+    maxScore,
+    questions: rows
   });
 };
 

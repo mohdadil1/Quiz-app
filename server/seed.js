@@ -27,16 +27,17 @@ const StudentRecord = require('./models/StudentRecord');
 
     // Sample class
     const className = 'CS-A';
-    let cls = await Class.findOne({ name: className });
+    let cls = await Class.findOne({ teacher: teacher._id, name: className });
     if (!cls) {
-      cls = await Class.create({ name: className });
+      cls = await Class.create({ teacher: teacher._id, name: className });
       console.log(`[seed] created class: ${className}`);
     } else {
       console.log(`[seed] class "${className}" already exists`);
     }
 
-    // Sample students with roll numbers 1..5 (skip any that already exist for this class)
-    for (let r = 1; r <= 5; r++) {
+    // Sample students with USNs DEMO001..DEMO005 (skip any that already exist for this class)
+    for (let i = 1; i <= 5; i++) {
+      const r = `DEMO${String(i).padStart(3, '0')}`;
       const exists = await StudentRecord.findOne({ rollno: r, class: cls._id });
       if (!exists) {
         await StudentRecord.create({ rollno: r, class: cls._id });

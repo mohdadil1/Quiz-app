@@ -29,7 +29,7 @@ export default function StudentLogin() {
         screenResolution: `${screen.width}x${screen.height}`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
-      const { data } = await api.post('/students/login', { rollno: Number(rollno), name: name.trim(), password, deviceInfo });
+      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), password, deviceInfo });
       login(data.token, 'student', {
         rollno: data.rollno,
         name: data.name || name.trim(),
@@ -54,13 +54,13 @@ export default function StudentLogin() {
         {err && <div className="alert alert-error">{err}</div>}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label>Roll Number</label>
+            <label>USN</label>
             <input
               type="text"
               className="form-control"
               value={rollno}
               onChange={(e) => setRollno(e.target.value)}
-              placeholder="Roll Number"
+              placeholder="USN (e.g. 1AB21CS001)"
               autoFocus
             />
           </div>

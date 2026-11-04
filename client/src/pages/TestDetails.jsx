@@ -79,7 +79,7 @@ export default function TestDetails() {
     e.preventDefault();
     if (!guestRoll) return;
     try {
-      await api.post(`/tests/${id}/guest-student`, { rollno: Number(guestRoll), name: guestName.trim() || undefined });
+      await api.post(`/tests/${id}/guest-student`, { rollno: guestRoll.trim(), name: guestName.trim() || undefined });
       setGuestRoll('');
       setGuestName('');
       setMsg({ type: 'success', text: 'Student added successfully' });
@@ -150,11 +150,11 @@ export default function TestDetails() {
     }
   };
 
-  if (loading) return <TeacherLayout title="Test Details"><div className="empty-state">Loading…</div></TeacherLayout>;
-  if (!test) return <TeacherLayout title="Test Details"><div className="empty-state">Not found</div></TeacherLayout>;
+  if (loading) return <TeacherLayout title="Test Details" showBack><div className="empty-state">Loading…</div></TeacherLayout>;
+  if (!test) return <TeacherLayout title="Test Details" showBack><div className="empty-state">Not found</div></TeacherLayout>;
 
   return (
-    <TeacherLayout title="Test Details">
+    <TeacherLayout title="Test Details" showBack>
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
 
       <div className="row row-2">
@@ -214,18 +214,15 @@ export default function TestDetails() {
               <button className="btn btn-primary" onClick={markCompleted}>MARK COMPLETED</button>
               <button className="btn btn-danger" onClick={deleteTest}>DELETE TEST</button>
             </div>
-            <Link to={`/admin/tests/${id}/credentials`} className="btn btn-primary btn-block mt-2">
-              GET STUDENT DATA
-            </Link>
             <form onSubmit={addGuest} className="mt-3">
               <div className="form-group">
                 <label>Add guest student to test</label>
                 <input
-                  type="number"
+                  type="text"
                   className="form-control"
                   value={guestRoll}
                   onChange={(e) => setGuestRoll(e.target.value)}
-                  placeholder="Roll number"
+                  placeholder="USN"
                 />
               </div>
               <div className="form-group">

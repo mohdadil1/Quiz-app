@@ -16,11 +16,11 @@ export default function TestQuestionStats() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <TeacherLayout title="Question Statistics"><div className="empty-state">Loading…</div></TeacherLayout>;
-  if (!data) return <TeacherLayout title="Question Statistics"><div className="empty-state">Not found</div></TeacherLayout>;
+  if (loading) return <TeacherLayout title="Question Statistics" showBack><div className="empty-state">Loading…</div></TeacherLayout>;
+  if (!data) return <TeacherLayout title="Question Statistics" showBack><div className="empty-state">Not found</div></TeacherLayout>;
 
   return (
-    <TeacherLayout title="Question Statistics">
+    <TeacherLayout title="Question Statistics" showBack>
       <div className="card">
         <div className="card-header"><h3>{data.test.name}</h3></div>
         <div className="card-body">

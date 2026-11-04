@@ -16,7 +16,7 @@ export default function Statistics() {
   }, []);
 
   return (
-    <TeacherLayout title="Statistics">
+    <TeacherLayout title="Statistics" showBack>
       <div className="card">
         <div className="card-header"><h3>Completed Quiz Tests</h3></div>
         <div className="card-body">

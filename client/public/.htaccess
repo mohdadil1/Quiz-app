@@ -1,6 +1,9 @@
 # Prevent directory listings
 Options -Indexes
 
+# Browsers need the right MIME type to stream-compile WebAssembly (MediaPipe face tracking)
+AddType application/wasm .wasm
+
 # Enable rewrite engine for SPA routing
 RewriteEngine On
 RewriteBase /

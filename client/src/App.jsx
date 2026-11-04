@@ -18,6 +18,8 @@ import Statistics from './pages/Statistics';
 import TestStats from './pages/TestStats';
 import TestQuestionStats from './pages/TestQuestionStats';
 import StudentCredentials from './pages/StudentCredentials';
+import StudentData from './pages/StudentData';
+import StudentAnswers from './pages/StudentAnswers';
 
 // Student pages
 import StudentDashboard from './pages/StudentDashboard';
@@ -61,6 +63,14 @@ export default function App() {
       <Route
         path="/admin/data"
         element={<ProtectedRoute role="teacher"><AddData /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/tests/:id/students/:testStudentId/answers"
+        element={<ProtectedRoute role="teacher"><StudentAnswers /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/student-data"
+        element={<ProtectedRoute role="teacher"><StudentData /></ProtectedRoute>}
       />
       <Route
         path="/admin/view-data"

@@ -19,7 +19,7 @@ exports.login = async (req, res) => {
     return res.status(400).json({ message: 'rollno and password required' });
   }
 
-  const query = { rollno };
+  const query = { rollno: String(rollno).trim().toUpperCase() };
   if (name && String(name).trim().length) {
     query.name = String(name).trim();
   }

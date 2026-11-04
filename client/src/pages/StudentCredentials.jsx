@@ -7,7 +7,10 @@ function describeViolation(type) {
   return {
     'tab-switch': 'Switched browser tab or window',
     'fullscreen-exit': 'Exited fullscreen mode',
-    'camera-disabled': 'Camera was disabled or disconnected'
+    'camera-disabled': 'Camera was disabled or disconnected',
+    'looking-away': 'Looked away from the screen',
+    'face-not-visible': 'Face not visible to the camera',
+    'multiple-faces': 'More than one face in camera view'
   }[type] || type || 'Unknown violation';
 }
 
@@ -47,7 +50,7 @@ export default function StudentCredentials() {
   };
 
   const handleDownloadCSV = () => {
-    const header = 'Roll Number,Name,Password,Violations,Violation Details\n';
+    const header = 'USN,Name,Password,Violations,Violation Details\n';
     const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -61,6 +64,7 @@ export default function StudentCredentials() {
   return (
     <TeacherLayout
       title="Student Credentials"
+      showBack
       actions={
         <>
           <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>Refresh</button>
@@ -82,6 +86,9 @@ export default function StudentCredentials() {
           .table tfoot { display: table-footer-group !important; }
           .table tr { page-break-inside: avoid !important; break-inside: avoid-column !important; }
           .table th, .table td { box-shadow: none !important; }
+          /* Print only the USN (2nd) and Name (3rd) columns */
+          .credentials-table th:not(:nth-child(2)):not(:nth-child(3)),
+          .credentials-table td:not(:nth-child(2)):not(:nth-child(3)) { display: none !important; }
         }
         .badge-in-progress {
           background-color: lightgreen;
@@ -106,11 +113,11 @@ export default function StudentCredentials() {
             <div className="empty-state"><h5>No students in this test</h5></div>
           ) : (
             <div className="table-wrap">
-              <table className="table">
+              <table className="table credentials-table">
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>Roll Number</th>
+                    <th>USN</th>
                     <th>Name</th>
                     <th>Password</th>
                     <th>Status</th>
@@ -129,7 +136,7 @@ export default function StudentCredentials() {
                         <td>
                           {isEditing ? (
                             <input
-                              type="number"
+                              type="text"
                               className="form-control"
                               value={editRollno}
                               onChange={(e) => setEditRollno(e.target.value)}
@@ -168,7 +175,7 @@ export default function StudentCredentials() {
                                   setSaving(true);
                                   try {
                                     const { data } = await api.put(`/tests/${id}/students/${r.studentId}`, {
-                                      rollno: editRollno === '' ? undefined : Number(editRollno),
+                                      rollno: String(editRollno).trim() === '' ? undefined : String(editRollno).trim(),
                                       name: editName.trim()
                                     });
                                     setRows(rows.map((row) => row.studentId === r.studentId ? {

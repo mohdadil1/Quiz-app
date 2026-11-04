@@ -15,6 +15,7 @@ router.get('/:id/credentials', ctrl.listCredentials);
 router.put('/:id/students/:studentId', ctrl.updateStudentRecord);
 router.delete('/:id/students/:studentId', ctrl.deleteStudentRecord);
 router.get('/:id/scoreboard', ctrl.scoreboard);
+router.get('/:id/students/:testStudentId/answers', ctrl.studentAnswers);
 router.get('/:id/question-stats', ctrl.questionStats);
 
 module.exports = router;

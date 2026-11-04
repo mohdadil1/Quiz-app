@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { RichText } from '../components/RichTextEditor';
+import useFaceMonitor from '../components/useFaceMonitor';
 const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
 // How many anti-cheat violations before the test is auto-submitted
@@ -15,6 +16,26 @@ function getQuestionTimeLimit(question) {
   const minutes = Number(question?.timeLimit);
   return (Number.isFinite(minutes) && minutes >= 0.25 ? minutes : 1) * 60;
 }
+
+// Banner text for the most recent violation
+const VIOLATION_MESSAGES = {
+  'tab-switch': 'Do not switch tabs or minimize the window.',
+  'fullscreen-exit': 'Do not exit fullscreen.',
+  'camera-disabled': 'Keep your camera turned on.',
+  'looking-away': 'Keep looking at the screen.',
+  'face-not-visible': 'Keep your face visible to the camera.',
+  'multiple-faces': 'Only you may be in front of the camera.'
+};
+
+// Camera badge label/colour for each face-monitor status
+const CAMERA_STATUS = {
+  loading: { label: 'Starting face tracking…', tone: 'muted' },
+  ok: { label: 'Camera active', tone: 'ok' },
+  'looking-away': { label: 'Look at the screen!', tone: 'alert' },
+  'face-not-visible': { label: 'Face not visible!', tone: 'alert' },
+  'multiple-faces': { label: 'Multiple faces!', tone: 'alert' },
+  unavailable: { label: 'Camera active', tone: 'ok' }
+};
 
 function getFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement;
@@ -31,6 +52,7 @@ export default function Quiz() {
   // Anti-cheat state
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
+  const [lastViolation, setLastViolation] = useState(null);
   const [fullscreenError, setFullscreenError] = useState('');
   const [outOfFullscreen, setOutOfFullscreen] = useState(false);
   const [cameraError, setCameraError] = useState('');
@@ -190,6 +212,7 @@ export default function Quiz() {
     warningsRef.current += 1;
     const count = warningsRef.current;
     setWarnings(count);
+    setLastViolation(reason);
     setShowWarning(true);
 
     // Fire-and-forget: log it on the server so the teacher can see
@@ -220,6 +243,13 @@ export default function Quiz() {
     track.addEventListener('ended', onCameraEnded);
     return () => track.removeEventListener('ended', onCameraEnded);
   }, [webcamRequired, started, cameraReady, handleViolation]);
+
+  // -------- Anti-cheat: face / gaze tracking on the webcam --------
+  const { status: faceStatus } = useFaceMonitor(
+    videoRef,
+    webcamRequired && started && cameraReady,
+    handleViolation
+  );
 
   // -------- Anti-cheat: tab switch --------
   useEffect(() => {
@@ -412,6 +442,12 @@ export default function Quiz() {
               <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
               <li>The test will run in <strong>fullscreen mode</strong>.</li>
               {webcamRequired && <li>A webcam is required and must remain enabled during the test.</li>}
+              {webcamRequired && (
+                <li>
+                  Keep your face visible and <strong>look at the screen</strong>. Looking away, leaving the camera view,
+                  or having someone else in view for more than a couple of seconds counts as a violation.
+                </li>
+              )}
               <li><strong>Do not</strong> switch tabs, minimize, or exit fullscreen.</li>
               <li>Right-click, copy, and developer tools are disabled.</li>
               <li>
@@ -461,7 +497,8 @@ export default function Quiz() {
           style={{ position: 'sticky', top: 0, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}
         >
           <span>
-            ⚠️ <strong>Warning {warnings}/{MAX_WARNINGS}:</strong> Do not switch tabs, minimize, or exit fullscreen.
+            ⚠️ <strong>Warning {warnings}/{MAX_WARNINGS}:</strong>{' '}
+            {VIOLATION_MESSAGES[lastViolation] || 'Do not switch tabs, minimize, or exit fullscreen.'}
             {' '}{remaining > 0 ? `${remaining} warning${remaining === 1 ? '' : 's'} remaining before auto-submit.` : ''}
           </span>
           <button
@@ -512,9 +549,14 @@ export default function Quiz() {
         </div>
 
         {webcamRequired && (
-          <div className="quiz-camera" title="Webcam proctoring is active">
+          <div
+            className={`quiz-camera quiz-camera--${CAMERA_STATUS[faceStatus].tone}`}
+            title="Webcam proctoring is active"
+            role="status"
+            aria-live="polite"
+          >
             <video ref={videoRef} autoPlay muted playsInline />
-            <span><span className="quiz-camera-dot" /> Camera active</span>
+            <span><span className="quiz-camera-dot" /> {CAMERA_STATUS[faceStatus].label}</span>
           </div>
         )}
 
