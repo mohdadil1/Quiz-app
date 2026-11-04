@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/PasswordInput';
 
 const getDeviceInfo = () => ({
   userAgent: navigator.userAgent,
@@ -11,9 +12,12 @@ const getDeviceInfo = () => ({
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 });
 
-// Teacher login, plus "Create account" so each teacher gets their own private tests and classes
+const TITLES = { login: 'Teacher Login', signup: 'Create Teacher Account', forgot: 'Reset Password' };
+const SEND_CODE_URL = { signup: '/teachers/register/send-code', forgot: '/teachers/password/send-code' };
+
+// Teacher login, "Create account" (email-verified) and "Forgot password" (emailed reset code)
 export default function TeacherLogin() {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -27,8 +31,11 @@ export default function TeacherLogin() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const isSignup = mode === 'signup';
+  const isForgot = mode === 'forgot';
 
-  const codeSent = isSignup && codeSentTo !== '' && codeSentTo === email.trim().toLowerCase();
+  const codeSent = mode !== 'login' && codeSentTo !== '' && codeSentTo === email.trim().toLowerCase();
+  // Signup asks for the password before sending the code; reset asks for the new one after
+  const showPasswordFields = !isForgot || codeSent;
 
   useEffect(() => {
     if (resendIn <= 0) return undefined;
@@ -46,20 +53,30 @@ export default function TeacherLogin() {
     setCodeSentTo('');
   };
 
+  const checkNewPassword = () => {
+    if (password.length < 6) return 'Password must be at least 6 characters';
+    if (password !== confirmPassword) return 'Passwords do not match';
+    return '';
+  };
+
   const sendCode = async () => {
     setErr('');
     setInfo('');
-    if (password.length < 6) return setErr('Password must be at least 6 characters');
-    if (password !== confirmPassword) return setErr('Passwords do not match');
+    if (isSignup) {
+      const problem = checkNewPassword();
+      if (problem) return setErr(problem);
+    }
     setLoading(true);
     try {
-      await api.post('/teachers/register/send-code', { email });
+      await api.post(SEND_CODE_URL[mode], { email });
       setCodeSentTo(email.trim().toLowerCase());
       setCode('');
       setResendIn(60);
-      setInfo(`We sent a 6-digit code to ${email.trim()}. It expires in 10 minutes.`);
+      setInfo(isForgot
+        ? `If an account exists for ${email.trim()}, we sent it a 6-digit code. It expires in 10 minutes.`
+        : `We sent a 6-digit code to ${email.trim()}. It expires in 10 minutes.`);
     } catch (e) {
-      setErr(e?.response?.data?.message || 'Could not send the verification code');
+      setErr(e?.response?.data?.message || 'Could not send the code');
     } finally {
       setLoading(false);
     }
@@ -67,30 +84,45 @@ export default function TeacherLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isSignup && !codeSent) return sendCode();
+    if (mode !== 'login' && !codeSent) return sendCode();
     setErr('');
-    if (isSignup) {
-      if (password.length < 6) return setErr('Password must be at least 6 characters');
-      if (password !== confirmPassword) return setErr('Passwords do not match');
+    if (mode !== 'login') {
+      const problem = checkNewPassword();
+      if (problem) return setErr(problem);
     }
     setLoading(true);
     try {
-      const { data } = isSignup
-        ? await api.post('/teachers/register', { name: name.trim(), email, password, code: code.trim(), deviceInfo: getDeviceInfo() })
-        : await api.post('/teachers/login', { email, password, deviceInfo: getDeviceInfo() });
+      const deviceInfo = getDeviceInfo();
+      const { data } = mode === 'login'
+        ? await api.post('/teachers/login', { email, password, deviceInfo })
+        : isSignup
+          ? await api.post('/teachers/register', { name: name.trim(), email, password, code: code.trim(), deviceInfo })
+          : await api.post('/teachers/password/reset', { email, password, code: code.trim(), deviceInfo });
       login(data.token, 'teacher', data.teacher, data.sessionId);
       navigate('/admin/dashboard');
     } catch (e) {
-      setErr(isSignup ? (e?.response?.data?.message || 'Could not create account') : 'Login failed');
+      const fallback = { login: 'Login failed', signup: 'Could not create account', forgot: 'Could not reset password' }[mode];
+      setErr(mode === 'login' ? fallback : (e?.response?.data?.message || fallback));
     } finally {
       setLoading(false);
     }
   };
 
+  const submitLabel = mode === 'login'
+    ? (loading ? 'Logging in…' : 'Login')
+    : !codeSent
+      ? (loading ? 'Sending code…' : isForgot ? 'Send Reset Code' : 'Send Verification Code')
+      : isForgot
+        ? (loading ? 'Resetting…' : 'Reset Password')
+        : (loading ? 'Creating account…' : 'Create Account');
+
   return (
     <div className="center-page">
       <div className="center-card">
-        <h1>{isSignup ? 'Create Teacher Account' : 'Teacher Login'}</h1>
+        <h1>{TITLES[mode]}</h1>
+        {isForgot && !codeSent && (
+          <p className="text-muted">Enter your account email and we&apos;ll send you a code to set a new password.</p>
+        )}
         {err && <div className="alert alert-error">{err}</div>}
         {info && !err && <div className="alert alert-info">{info}</div>}
         <form onSubmit={handleSubmit}>
@@ -110,43 +142,19 @@ export default function TeacherLogin() {
           <div className="form-group">
             <label>Email</label>
             <input
-              type={isSignup ? 'email' : 'text'}
+              type={mode === 'login' ? 'text' : 'email'}
               className="form-control"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               autoFocus={!isSignup}
+              autoComplete="email"
               required
             />
           </div>
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              className="form-control"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={isSignup ? 'At least 6 characters' : 'Your password'}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              required
-            />
-          </div>
-          {isSignup && (
-            <div className="form-group">
-              <label>Confirm password</label>
-              <input
-                type="password"
-                className="form-control"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                autoComplete="new-password"
-                required
-              />
-            </div>
-          )}
           {codeSent && (
             <div className="form-group">
-              <label>Verification code</label>
+              <label>{isForgot ? 'Reset code' : 'Verification code'}</label>
               <input
                 type="text"
                 inputMode="numeric"
@@ -169,22 +177,46 @@ export default function TeacherLogin() {
               </div>
             </div>
           )}
+          {showPasswordFields && (
+            <div className="form-group">
+              <label>{isForgot ? 'New password' : 'Password'}</label>
+              <PasswordInput
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={mode === 'login' ? 'Your password' : 'At least 6 characters'}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                required
+              />
+              {mode === 'login' && (
+                <div className="text-right mt-2" style={{ fontSize: '0.85rem' }}>
+                  <a href="#forgot" onClick={(e) => { e.preventDefault(); switchMode('forgot'); }}>Forgot password?</a>
+                </div>
+              )}
+            </div>
+          )}
+          {showPasswordFields && mode !== 'login' && (
+            <div className="form-group">
+              <label>{isForgot ? 'Confirm new password' : 'Confirm password'}</label>
+              <PasswordInput
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                autoComplete="new-password"
+                required
+              />
+            </div>
+          )}
           <button type="submit" className="btn btn-primary btn-block" disabled={loading || (codeSent && code.length !== 6)}>
-            {!isSignup
-              ? (loading ? 'Logging in…' : 'Login')
-              : !codeSent
-                ? (loading ? 'Sending code…' : 'Send Verification Code')
-                : (loading ? 'Creating account…' : 'Create Account')}
+            {submitLabel}
           </button>
         </form>
         <div className="text-center mt-3">
-          {isSignup ? (
-            <a href="#login" className="text-muted" onClick={(e) => { e.preventDefault(); switchMode('login'); }}>
-              Already have an account? Log in
-            </a>
-          ) : (
+          {mode === 'login' ? (
             <a href="#signup" className="text-muted" onClick={(e) => { e.preventDefault(); switchMode('signup'); }}>
               New teacher? Create an account
+            </a>
+          ) : (
+            <a href="#login" className="text-muted" onClick={(e) => { e.preventDefault(); switchMode('login'); }}>
+              {isForgot ? 'Back to login' : 'Already have an account? Log in'}
             </a>
           )}
         </div>

@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import Avatar from './Avatar';
 
 export default function Sidebar({ open = false, onClose = () => {} }) {
   const { logout, user } = useAuth();
@@ -26,7 +27,10 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
         <div className="brand">
           Quizora
           {user?.email && (
-            <div className="sidebar-account" title={user.email}>{user.name || user.email}</div>
+            <NavLink to="/admin/profile" className="sidebar-account" title={`${user.email} — view profile`} onClick={handleNavClick}>
+              <Avatar src={user.avatar} name={user.name} email={user.email} size={32} />
+              <span>{user.name || user.email}</span>
+            </NavLink>
           )}
         </div>
         <nav>
@@ -35,6 +39,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           <NavLink to="/admin/student-data" onClick={handleNavClick}>Get Student Data</NavLink>
           <NavLink to="/admin/statistics" onClick={handleNavClick}>Statistics</NavLink>
           <NavLink to="/admin/view-data" onClick={handleNavClick}>View Data</NavLink>
+          <NavLink to="/admin/profile" onClick={handleNavClick}>Profile</NavLink>
           <a href="#logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
         </nav>
       </aside>

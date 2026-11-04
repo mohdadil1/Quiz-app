@@ -25,6 +25,19 @@ export function AuthProvider({ children }) {
     setUser(user);
   }, []);
 
+  // Merge fresh profile fields (e.g. after editing the profile) into the logged-in user
+  const updateUser = useCallback((changes) => {
+    setUser((prev) => {
+      const next = { ...prev, ...changes };
+      try {
+        localStorage.setItem('quizora_user', JSON.stringify(next));
+      } catch {
+        // storage full or blocked — the in-memory user is still updated
+      }
+      return next;
+    });
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       if (token) {
@@ -48,7 +61,7 @@ export function AuthProvider({ children }) {
   }, [token, role]);
 
   return (
-    <AuthContext.Provider value={{ token, role, user, sessionId, login, logout, isAuthed: !!token }}>
+    <AuthContext.Provider value={{ token, role, user, sessionId, login, logout, updateUser, isAuthed: !!token }}>
       {children}
     </AuthContext.Provider>
   );

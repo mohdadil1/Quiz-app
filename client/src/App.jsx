@@ -20,6 +20,7 @@ import TestQuestionStats from './pages/TestQuestionStats';
 import StudentCredentials from './pages/StudentCredentials';
 import StudentData from './pages/StudentData';
 import StudentAnswers from './pages/StudentAnswers';
+import Profile from './pages/Profile';
 
 // Student pages
 import StudentDashboard from './pages/StudentDashboard';
@@ -67,6 +68,10 @@ export default function App() {
       <Route
         path="/admin/tests/:id/students/:testStudentId/answers"
         element={<ProtectedRoute role="teacher"><StudentAnswers /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/profile"
+        element={<ProtectedRoute role="teacher"><Profile /></ProtectedRoute>}
       />
       <Route
         path="/admin/student-data"

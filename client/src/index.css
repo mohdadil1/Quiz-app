@@ -80,13 +80,47 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--primary);
 }
 .sidebar-account {
-  margin-top: 4px;
-  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 0.85rem;
   font-weight: 500;
-  color: #bbb;
+  color: #ccc;
+  text-decoration: none;
+  min-width: 0;
+}
+.sidebar-account span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.sidebar-account:hover span {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Profile picture (or initials) */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.avatar-initials {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1;
+}
+.profile-photo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 .sidebar nav {
   margin-top: 16px;
@@ -1357,4 +1391,33 @@ body.student-theme {
   .topbar-back-btn {
     display: none;
   }
+}
+
+/* Password field with show/hide toggle */
+.password-input {
+  position: relative;
+}
+.password-input .form-control {
+  padding-right: 44px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  color: var(--text);
+  background: var(--bg);
 }

@@ -4,6 +4,9 @@ const bcrypt = require('bcryptjs');
 const teacherSchema = new mongoose.Schema(
   {
     name: { type: String, trim: true, default: '' },
+    gender: { type: String, enum: ['', 'male', 'female', 'other', 'prefer-not-to-say'], default: '' },
+    // Profile picture as a small data: URL (resized in the browser) — kept in the DB since Vercel has no disk
+    avatar: { type: String, default: '' },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     password: { type: String, required: true }
   },
