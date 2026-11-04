@@ -90,9 +90,9 @@ export default function StudentCredentials() {
           .table tfoot { display: table-footer-group !important; }
           .table tr { page-break-inside: avoid !important; break-inside: avoid-column !important; }
           .table th, .table td { box-shadow: none !important; }
-          /* Print only the USN (2nd) and Name (3rd) columns */
-          .credentials-table th:not(:nth-child(2)):not(:nth-child(3)),
-          .credentials-table td:not(:nth-child(2)):not(:nth-child(3)) { display: none !important; }
+          /* Print only the USN (2nd), Name (3rd) and Password (4th) columns */
+          .credentials-table th:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(4)),
+          .credentials-table td:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(4)) { display: none !important; }
           .credentials-table th[aria-sort] span { display: none !important; }
         }
         .badge-in-progress {

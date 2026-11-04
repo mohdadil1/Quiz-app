@@ -87,7 +87,7 @@ The **Student Credentials** page lists every student's USN, name and test passwo
 
 ![Student Credentials](docs/screenshots/student-credentials.png)
 
-- **Print** prints only the USN and Name columns.
+- **Print** prints only the USN, Name and Password columns — a sheet you can hand out for logging in.
 - **Download CSV** saves everything, including passwords, to hand out or keep.
 - **Edit** fixes a student's USN or name. **Delete** removes them from this test.
 - **Refresh** reloads the list while the test is running.
