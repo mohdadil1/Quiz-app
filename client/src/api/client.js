@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://quiz-app-backend-cb2q.onrender.com/api'
+  baseURL: import.meta.env.VITE_API_URL || 'https://quiz-app-backend-drab.vercel.app/api'
 });
 
 // Attach the saved JWT (if any) to every outgoing request
