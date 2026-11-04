@@ -40,7 +40,7 @@ export default function StudentAnswers() {
           <span className="text-muted">{data.test.name} — {data.test.subject}</span>
         </div>
         <div className="card-body">
-          <div className="item-meta">
+          <div className="flex" style={{ flexWrap: 'wrap', alignItems: 'center', gap: '8px 24px' }}>
             <span>Score: <strong>{data.score} / {data.maxScore}</strong></span>
             <span style={{ color: 'var(--success)' }}>Right: <strong>{counts.right}</strong></span>
             <span style={{ color: 'var(--danger)' }}>Wrong: <strong>{counts.wrong}</strong></span>

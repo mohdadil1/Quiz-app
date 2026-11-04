@@ -46,7 +46,7 @@ export default function TestStats() {
           <Link to={`/admin/tests/${id}/question-stats`} className="btn btn-secondary">
             Question Stats
           </Link>
-          <button className="btn btn-primary" onClick={() => window.print()}>Print</button>
+          <button className="btn btn-secondary" onClick={() => window.print()}>Print</button>
         </>
       }
     >

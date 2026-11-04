@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import PasswordInput from '../components/PasswordInput';
 
 export default function StudentLogin() {
   const [rollno, setRollno] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -76,22 +76,12 @@ export default function StudentLogin() {
           </div>
           <div className="form-group">
             <label>Password</label>
-            <input
-              type={showPassword ? 'text' : 'password'}
-              className="form-control"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
+              autoComplete="current-password"
             />
-            <div className="form-check mt-1">
-              <input
-                type="checkbox"
-                id="showPassword"
-                checked={showPassword}
-                onChange={(e) => setShowPassword(e.target.checked)}
-              />
-              <label htmlFor="showPassword" className="form-check-label">Show password</label>
-            </div>
           </div>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
             {loading ? 'Logging in…' : 'Login'}

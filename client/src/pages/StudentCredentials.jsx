@@ -69,7 +69,7 @@ export default function StudentCredentials() {
         <>
           <button className="btn btn-secondary" onClick={handleRefresh} disabled={loading}>Refresh</button>
           <button className="btn btn-secondary" onClick={handleDownloadCSV}>Download CSV</button>
-          <button className="btn btn-primary" onClick={handlePrint}>Print</button>
+          <button className="btn btn-secondary" onClick={handlePrint}>Print</button>
         </>
       }
     >
