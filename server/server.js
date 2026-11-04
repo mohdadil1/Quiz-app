@@ -57,9 +57,12 @@ app.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ message: err.message || 'Server error' });
 });
 
-const PORT = process.env.PORT || 5000;
+module.exports = app;
 
-(async () => {
-  await connectDB();
-  app.listen(PORT, () => console.log(`[api] listening on :${PORT}`));
-})();
+// `node server.js` (local / Render) starts a long-running server; on Vercel, api/index.js imports the app instead
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  connectDB()
+    .then(() => app.listen(PORT, () => console.log(`[api] listening on :${PORT}`)))
+    .catch(() => process.exit(1));
+}
