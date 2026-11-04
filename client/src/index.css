@@ -1448,3 +1448,134 @@ body.student-theme {
   flex-shrink: 0;
   accent-color: var(--primary);
 }
+
+/* ===================== Student UI refresh ===================== */
+/* Same blue look on every student page (login and finished pages used the teacher orange) */
+.student-theme .center-page {
+  background: linear-gradient(135deg, #1f6feb 0%, #4dabff 100%);
+}
+
+/* Dashboard: keep Logout beside the name, and the LIVE badge pill-sized, on phones */
+@media (max-width: 700px) {
+  .student-topbar { flex-direction: row; align-items: center; gap: 12px; }
+  .student-identity { min-width: 0; }
+  .student-topbar .btn-secondary { flex-shrink: 0; align-self: center; }
+  .student-test-badge { display: inline-flex; width: auto; align-self: flex-start; }
+  .student-test-title { margin-top: 0; }
+}
+
+/* Start screen */
+.quiz-start {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.quiz-start-card {
+  width: 100%;
+  max-width: 640px;
+}
+.quiz-start-title {
+  color: var(--primary);
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
+.quiz-start-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0;
+}
+.quiz-start-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: var(--primary-light);
+  text-align: center;
+}
+.quiz-start-chip .chip-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1.2;
+}
+.quiz-start-chip .chip-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.quiz-start-rules {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+.quiz-start-rules li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.quiz-start-rules .rule-icon {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #f3f5f9;
+  font-size: 1rem;
+}
+
+/* Finished page */
+.finish-card h1 { margin-bottom: 8px; }
+.finish-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #fff;
+}
+.finish-icon--success { background: var(--success); box-shadow: 0 0 0 8px rgba(24, 206, 15, 0.15); }
+.finish-icon--danger { background: var(--danger); box-shadow: 0 0 0 8px rgba(255, 54, 54, 0.15); }
+.finish-icon--warning { background: #f5a623; box-shadow: 0 0 0 8px rgba(245, 166, 35, 0.18); }
+.finish-redirect {
+  margin: 18px 0 14px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Quiz header on phones: name + timer on the first row, camera + Abort on the second */
+@media (max-width: 640px) {
+  .quiz-header-bar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "info timer"
+      "camera abort";
+    align-items: center;
+    gap: 10px 12px;
+    padding: 12px 14px;
+  }
+  .quiz-header-info { grid-area: info; flex-direction: column; }
+  .quiz-timer { grid-area: timer; width: 54px; height: 54px; margin: 0; }
+  .quiz-camera { grid-area: camera; }
+  .quiz-camera video { width: 72px; height: 48px; }
+  .quiz-abort-btn { grid-area: abort; justify-self: end; width: auto; padding: 6px 14px; font-size: 0.8rem; }
+  .quiz-start-chips { gap: 8px; }
+  .quiz-start-chip .chip-value { font-size: 1.05rem; }
+  .quiz-start-title { font-size: 1.25rem; }
+  .quiz-start-rules li { font-size: 0.9rem; }
+}
+.student-theme .form-control:focus { box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.18); }
+.finish-card h1 { color: var(--text); }

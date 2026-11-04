@@ -1,7 +1,6 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import ProtectedRoute from './components/ProtectedRoute';
-import { useAuth } from './context/AuthContext';
 
 // Public / login pages
 import StudentLogin from './pages/StudentLogin';
@@ -29,11 +28,12 @@ import TestFinished from './pages/TestFinished';
 import MockResults from './pages/MockResults';
 
 export default function App() {
-  const { role } = useAuth();
+  const { pathname } = useLocation();
 
   useEffect(() => {
-    document.body.classList.toggle('student-theme', role === 'student');
-  }, [role]);
+    // Blue student look on every non-teacher page (login, dashboard, quiz, finished), not just after login
+    document.body.classList.toggle('student-theme', !pathname.startsWith('/admin'));
+  }, [pathname]);
   return (
     <Routes>
       {/* Public */}

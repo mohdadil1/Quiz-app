@@ -38,6 +38,7 @@ export default function StudentDashboard() {
   const initial = displayName.charAt(0).toUpperCase() || 'S';
   const greeting = getGreeting();
   const isMock = info?.isMock;
+  const isTotalTime = !isMock && info?.timingMode === 'TOTAL';
 
   return (
     <div className="student-page">
@@ -116,8 +117,10 @@ export default function StudentDashboard() {
                     <span className="meta-value">{info.totalQuestions}</span>
                   </div>
                   <div className="meta-item">
-                    <span className="meta-label">Per question</span>
-                    <span className="meta-value">Varies</span>
+                    <span className="meta-label">Timer</span>
+                    <span className="meta-value">
+                      {isMock ? 'None' : isTotalTime ? `${info.totalTimeMinutes} min total` : 'Per question'}
+                    </span>
                   </div>
                 </div>
 
@@ -129,9 +132,14 @@ export default function StudentDashboard() {
                   </ul>
                 ) : (
                   <ul className="student-instructions">
-                    <li>Each question has its <strong>own time limit</strong> — check the timer on screen.</li>
-                    <li>The test runs in fullscreen. Don't switch tabs.</li>
-                    <li>You'll get 3 warnings before auto-submit.</li>
+                    {isTotalTime ? (
+                      <li>You have <strong>{info.totalTimeMinutes} minutes</strong> for the whole test.</li>
+                    ) : (
+                      <li>Each question has its <strong>own time limit</strong> — check the timer on screen.</li>
+                    )}
+                    <li>The test runs in fullscreen. Don&apos;t switch tabs.</li>
+                    {info.webcamProctoring && <li>Your camera stays on — keep your face visible.</li>}
+                    <li>You&apos;ll get 3 warnings before auto-submit.</li>
                   </ul>
                 )}
 

@@ -129,7 +129,10 @@ exports.dashboard = async (req, res) => {
     totalQuestions: ts.test.totalQuestions,
     running,
     submitted,
-    isMock: ts.test.mode === 'MOCK'
+    isMock: ts.test.mode === 'MOCK',
+    timingMode: ts.test.timingMode || 'PER_QUESTION',
+    totalTimeMinutes: ts.test.totalTimeMinutes || 30,
+    webcamProctoring: ts.test.webcamProctoring !== false
   });
 };
 

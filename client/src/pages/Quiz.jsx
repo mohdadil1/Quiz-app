@@ -463,53 +463,57 @@ export default function Quiz() {
 
   // -------- "Start Test" screen (required to trigger fullscreen from a user gesture) --------
   if (!started) {
+    const minutes = Math.round(totalSeconds / 60);
+    const rules = isMock
+      ? [
+          ['📝', 'This is a practice test — no timer, no proctoring, no warnings.'],
+          ['🔁', 'You can switch tabs, reload, and retake it as often as you like.']
+        ]
+      : [
+          isTotalTime
+            ? ['⏱️', <>One timer for the whole test. You can&apos;t go back, but you can <strong>Skip</strong> a question.</>]
+            : ['⏱️', 'Each question has its own timer. When it runs out, the next question loads.'],
+          ['🖥️', <>The test runs in <strong>fullscreen</strong>. Don&apos;t switch tabs or minimise.</>],
+          ...(webcamRequired
+            ? [['📷', <>Keep your camera on, your face visible, and <strong>look at the screen</strong>.</>]]
+            : []),
+          ['🚫', 'Right-click, copy and developer tools are disabled.'],
+          ['⚠️', <>On the <strong>{ordinal(MAX_WARNINGS)} warning</strong> your test is submitted automatically.</>]
+        ];
+
     return (
-      <div className="quiz-container">
-        <div className="quiz-card">
-          <h2 style={{ color: 'var(--primary)', marginBottom: 8 }}>Ready to begin, {studentName}?</h2>
-          <p className="text-muted mb-2">
-            Before you start, please read the rules carefully:
-          </p>
-          {isMock ? (
-            <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
-              <li>This is a <strong>Mock Practice</strong> test with no restrictions.</li>
-              <li>No fullscreen is required.</li>
-              <li>You may switch tabs or reload freely.</li>
-              <li>No warnings are issued and there is no auto-submit.</li>
-              <li>You can re-login and retake this mock test again.</li>
-              <li>The test has <strong>{questions.length} question(s)</strong>.</li>
-            </ul>
-          ) : (
-            <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
-              {isTotalTime ? (
-                <li>
-                  You have <strong>{Math.round(totalSeconds / 60)} minutes</strong> for the whole test. Questions come one at
-                  a time and you can&apos;t go back; use <strong>Skip</strong> if you don&apos;t know an answer. When time runs out,
-                  the test is submitted automatically.
-                </li>
-              ) : (
-                <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
-              )}
-              <li>The test will run in <strong>fullscreen mode</strong>.</li>
-              {webcamRequired && <li>A webcam is required and must remain enabled during the test.</li>}
-              {webcamRequired && (
-                <li>
-                  Keep your face visible and <strong>look at the screen</strong>. Looking away, leaving the camera view,
-                  or having someone else in view for more than a couple of seconds counts as a violation.
-                </li>
-              )}
-              <li><strong>Do not</strong> switch tabs, minimize, or exit fullscreen.</li>
-              <li>Right-click, copy, and developer tools are disabled.</li>
-              <li>
-                You get <strong>{MAX_WARNINGS} warnings</strong>. On the {ordinal(MAX_WARNINGS)} violation,
-                your test will be <strong>auto-submitted</strong>.
+      <div className="quiz-container quiz-start">
+        <div className="quiz-card quiz-start-card">
+          <h2 className="quiz-start-title">Ready to begin, {studentName}?</h2>
+          <p className="text-muted">Read these rules, then start when you&apos;re ready.</p>
+
+          <div className="quiz-start-chips">
+            <div className="quiz-start-chip">
+              <span className="chip-value">{questions.length}</span>
+              <span className="chip-label">question{questions.length === 1 ? '' : 's'}</span>
+            </div>
+            <div className="quiz-start-chip">
+              <span className="chip-value">{isMock ? '—' : isTotalTime ? `${minutes} min` : 'Per Q'}</span>
+              <span className="chip-label">{isMock ? 'no timer' : isTotalTime ? 'total time' : 'timer'}</span>
+            </div>
+            <div className="quiz-start-chip">
+              <span className="chip-value">{isMock ? '—' : MAX_WARNINGS}</span>
+              <span className="chip-label">{isMock ? 'no warnings' : 'warnings max'}</span>
+            </div>
+          </div>
+
+          <ul className="quiz-start-rules">
+            {rules.map(([icon, text], i) => (
+              <li key={i}>
+                <span className="rule-icon" aria-hidden="true">{icon}</span>
+                <span>{text}</span>
               </li>
-              <li>The test has <strong>{questions.length} question(s)</strong>.</li>
-            </ul>
-          )}
+            ))}
+          </ul>
+
           {fullscreenError && <div className="alert alert-error">{fullscreenError}</div>}
           {cameraError && <div className="alert alert-error">{cameraError}</div>}
-          <button className="btn btn-primary btn-block" onClick={handleStart}>
+          <button className="btn btn-primary btn-block btn-lg" onClick={handleStart}>
             I understand — Start Test
           </button>
         </div>
@@ -635,7 +639,7 @@ export default function Quiz() {
           </div>
         )}
 
-        <button className="btn btn-secondary btn-sm" onClick={handleManualLogout}>Abort</button>
+        <button className="btn btn-secondary btn-sm quiz-abort-btn" onClick={handleManualLogout}>Abort</button>
       </div>
 
       {/* Progress bar */}
