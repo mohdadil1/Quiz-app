@@ -40,7 +40,7 @@ export default function AddQuestion() {
   };
 
   return (
-    <TeacherLayout title="Add New Question">
+    <TeacherLayout title="Add New Question" showBack>
       <div className="card" style={{ maxWidth: 700, margin: '0 auto' }}>
         <div className="card-header"><h3>New Question</h3></div>
         <div className="card-body">
