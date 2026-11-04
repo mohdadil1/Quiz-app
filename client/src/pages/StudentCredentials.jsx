@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import SortHeader, { DEFAULT_SORT, sortStudents, nextSort } from '../components/SortHeader';
 
 function describeViolation(type) {
   return {
@@ -17,6 +18,9 @@ function describeViolation(type) {
 export default function StudentCredentials() {
   const { id } = useParams();
   const [rows, setRows] = useState([]);
+  const [sort, setSort] = useState(DEFAULT_SORT);
+  // Table, print and CSV all follow the chosen sort order
+  const sortedRows = sortStudents(rows, sort);
   const [loading, setLoading] = useState(true);
   const [editingStudentId, setEditingStudentId] = useState(null);
   const [editRollno, setEditRollno] = useState('');
@@ -51,7 +55,7 @@ export default function StudentCredentials() {
 
   const handleDownloadCSV = () => {
     const header = 'USN,Name,Password,Violations,Violation Details\n';
-    const body = rows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
+    const body = sortedRows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -89,6 +93,7 @@ export default function StudentCredentials() {
           /* Print only the USN (2nd) and Name (3rd) columns */
           .credentials-table th:not(:nth-child(2)):not(:nth-child(3)),
           .credentials-table td:not(:nth-child(2)):not(:nth-child(3)) { display: none !important; }
+          .credentials-table th[aria-sort] span { display: none !important; }
         }
         .badge-in-progress {
           background-color: lightgreen;
@@ -117,8 +122,8 @@ export default function StudentCredentials() {
                 <thead>
                   <tr>
                     <th>#</th>
-                    <th>USN</th>
-                    <th>Name</th>
+                    <SortHeader label="USN" sortKey="rollno" sort={sort} onSort={(k) => setSort(nextSort(sort, k))} />
+                    <SortHeader label="Name" sortKey="name" sort={sort} onSort={(k) => setSort(nextSort(sort, k))} />
                     <th>Password</th>
                     <th>Status</th>
                     <th>Score</th>
@@ -128,7 +133,7 @@ export default function StudentCredentials() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => {
+                  {sortedRows.map((r, i) => {
                     const isEditing = editingStudentId === r.studentId;
                     return (
                       <tr key={r.testStudentId || r.studentId || i}>

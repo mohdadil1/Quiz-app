@@ -1,21 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
-
-const DEFAULT_SORT = { key: 'rollno', dir: 'asc' };
-
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
-
-// Sort students by 'rollno' or 'name'; blank names always go last regardless of direction
-function sortStudents(students, { key, dir }) {
-  const sign = dir === 'desc' ? -1 : 1;
-  return [...students].sort((a, b) => {
-    const x = (a[key] ?? '').toString().trim();
-    const y = (b[key] ?? '').toString().trim();
-    if (!x || !y) return !x && !y ? 0 : !x ? 1 : -1;
-    return sign * collator.compare(x, y);
-  });
-}
+import SortHeader, { DEFAULT_SORT, sortStudents, nextSort } from '../components/SortHeader';
 
 export default function ViewData() {
   const [data, setData] = useState([]);
@@ -25,26 +11,7 @@ export default function ViewData() {
   const [sortByClass, setSortByClass] = useState({}); // classId -> { key, dir }
 
   const toggleSort = (classId, key) => {
-    setSortByClass((prev) => {
-      const cur = prev[classId] || DEFAULT_SORT;
-      const dir = cur.key === key && cur.dir === 'asc' ? 'desc' : 'asc';
-      return { ...prev, [classId]: { key, dir } };
-    });
-  };
-
-  const SortHeader = ({ classId, sortKey, label }) => {
-    const cur = sortByClass[classId] || DEFAULT_SORT;
-    const active = cur.key === sortKey;
-    return (
-      <th
-        onClick={() => toggleSort(classId, sortKey)}
-        style={{ cursor: 'pointer', userSelect: 'none' }}
-        aria-sort={active ? (cur.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-        title={`Sort by ${label}`}
-      >
-        {label} <span className={active ? '' : 'text-muted'}>{active ? (cur.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
-      </th>
-    );
+    setSortByClass((prev) => ({ ...prev, [classId]: nextSort(prev[classId] || DEFAULT_SORT, key) }));
   };
 
   useEffect(() => {
@@ -99,8 +66,8 @@ export default function ViewData() {
                     <thead>
                       <tr>
                         <th>#</th>
-                        <SortHeader classId={c._id} sortKey="rollno" label="USN" />
-                        <SortHeader classId={c._id} sortKey="name" label="Name" />
+                        <SortHeader label="USN" sortKey="rollno" sort={sortByClass[c._id] || DEFAULT_SORT} onSort={(k) => toggleSort(c._id, k)} />
+                        <SortHeader label="Name" sortKey="name" sort={sortByClass[c._id] || DEFAULT_SORT} onSort={(k) => toggleSort(c._id, k)} />
                       </tr>
                     </thead>
                     <tbody>
