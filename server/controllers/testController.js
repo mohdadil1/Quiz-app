@@ -152,7 +152,7 @@ exports.completeTest = async (req, res) => {
   res.json(test);
 };
 
-// DELETE /api/tests/:id — cascades to questions + testStudents
+// DELETE /api/tests/:id — cascades to questions, testStudents and their answers
 exports.deleteTest = async (req, res) => {
   const test = await Test.findById(req.params.id);
   if (!test) return res.status(404).json({ message: 'Not found' });
@@ -164,6 +164,7 @@ exports.deleteTest = async (req, res) => {
     .filter(ts => ts.student && ts.student.class == null)
     .map(ts => ts.student._id);
 
+  await StudentAnswer.deleteMany({ testStudent: { $in: testStudents.map((ts) => ts._id) } });
   await Question.deleteMany({ test: test._id });
   await TestStudent.deleteMany({ test: test._id });
   await deleteUnusedGuests(guestStudentIds);
