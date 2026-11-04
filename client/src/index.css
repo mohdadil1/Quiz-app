@@ -1432,3 +1432,19 @@ body.student-theme {
   color: var(--text);
   background: var(--bg);
 }
+
+/* Checkbox + label rows in forms */
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 16px;
+  cursor: pointer;
+}
+.form-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}

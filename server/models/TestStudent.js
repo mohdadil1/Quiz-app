@@ -24,6 +24,8 @@ const testStudentSchema = new mongoose.Schema(
     },
     active: { type: Boolean, default: false },
     started: { type: Boolean, default: false },
+    // When the student pressed Start — the total-time deadline is counted from here
+    startedAt: { type: Date, default: null },
     completedOnce: { type: Boolean, default: false }
   },
   { timestamps: true }

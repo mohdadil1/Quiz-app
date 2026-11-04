@@ -8,6 +8,7 @@ router.post('/login', ctrl.login);
 // Authenticated student
 router.get('/dashboard', requireAuth('student'), ctrl.dashboard);
 router.get('/quiz/questions', requireAuth('student'), ctrl.getQuestions);
+router.post('/quiz/start', requireAuth('student'), ctrl.startQuiz);
 router.post('/quiz/answer', requireAuth('student'), ctrl.submitAnswer);
 router.post('/quiz/finish', requireAuth('student'), ctrl.finish);
 router.get('/quiz/results', requireAuth('student'), ctrl.getResults);

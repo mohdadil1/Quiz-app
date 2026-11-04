@@ -62,6 +62,8 @@ On the **Dashboard**, click **+ New Test**. Fill in the name, subject, date, num
 - **Status:** `PENDING` (students can't start yet) or `RUNNING` (students can start).
 - **Mode:** `STANDARD` for a real, proctored test, or `MOCK` for practice: no timer, no proctoring, and students can retake it.
 - **Enable webcam proctoring for this test:** see [Run the test](#5-run-the-test).
+- **Timing:** *Per question* gives every question its own countdown (set on each question). *Total time for the whole test* gives one countdown, e.g. 30 minutes, for the whole test; questions still come one at a time with no going back, and students can **Skip** a question.
+- **Shuffle questions and options for each student:** every student gets their own order of questions and of the four options, so neighbours can't copy by position. A student keeps the same order if they reconnect.
 
 Every student in the chosen class is enrolled automatically, each with their own password.
 
@@ -96,7 +98,7 @@ Set the test's **Status** to `RUNNING` on Test Details and click **Update**. Stu
 
 During a `STANDARD` test the app:
 - runs in **fullscreen** and blocks right-click, copy/paste and developer tools;
-- gives each question its own **countdown**; when it runs out, the next question loads;
+- runs the **countdown** you chose: per question (when it runs out, the next question loads) or for the whole test (when it runs out, the test is submitted). The total-time deadline is kept on the server, so reloading the page doesn't give extra time;
 - counts a **warning** when the student switches tab or window, leaves fullscreen, or turns the camera off;
 - with **webcam proctoring** on, also watches the student's face and counts a warning if they **look away** for about 2 seconds, **leave the camera view** for 3 seconds, or **someone else appears** on camera. The preview turns red ("Look at the screen!") first, so a quick glance is not punished.
 
@@ -143,7 +145,7 @@ Click **Profile** in the sidebar (or your picture at the top of it) to set your 
    ![Student login](docs/screenshots/student-login.png)
 
 2. Wait until your teacher starts the test (status `RUNNING`), then click **Start Test**. For a proctored test, allow camera access when the browser asks.
-3. Answer each question before its timer runs out. You can't go back to a previous question.
+3. Answer each question before the timer runs out (it counts down either per question or for the whole test, as your teacher chose). You can't go back to a previous question; in a whole-test timer you can **Skip** one.
 4. Stay in fullscreen, don't switch tabs, keep your face visible and look at the screen. **3 warnings = the test is submitted automatically.**
 
 ---

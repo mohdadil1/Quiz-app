@@ -61,6 +61,9 @@ export default function Quiz() {
 
   // Per-question timer (in seconds remaining)
   const [timeLeft, setTimeLeft] = useState(DEFAULT_QUESTION_TIME_LIMIT);
+  // Total-time tests: seconds left for the whole test (deadline comes from the server)
+  const [totalLeft, setTotalLeft] = useState(null);
+  const totalDeadlineRef = useRef(null);
 
   // Refs so event listeners always see the latest values
   const warningsRef = useRef(0);
@@ -78,6 +81,8 @@ export default function Quiz() {
   const navigate = useNavigate();
   const isMock = user?.testMode === 'MOCK';
   const webcamRequired = !isMock && user?.webcamProctoring !== false;
+  const isTotalTime = !isMock && user?.timingMode === 'TOTAL';
+  const totalSeconds = (Number(user?.totalTimeMinutes) || 30) * 60;
 
   const stopCamera = useCallback(() => {
     cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -171,6 +176,10 @@ export default function Quiz() {
         setSubmitting(false);
       }
     } catch (e) {
+      if (e?.response?.status === 410) {
+        finish(false); // time is up (or already submitted) — wrap up instead of showing an error
+        return;
+      }
       setErr(e?.response?.data?.message || 'Error submitting answer');
       submittingRef.current = false;
       setSubmitting(false);
@@ -179,7 +188,7 @@ export default function Quiz() {
 
   // -------- Per-question countdown --------
   useEffect(() => {
-    if (isMock) return;
+    if (isMock || isTotalTime) return;
     if (!started || loading || submitting || finishedRef.current) return;
     const question = questions[idx];
     if (!question) return;
@@ -198,7 +207,23 @@ export default function Quiz() {
     }, 250);
 
     return () => clearInterval(intervalId);
-  }, [idx, started, loading, submitting, questions, submitAnswerOrSkip, isMock]);
+  }, [idx, started, loading, submitting, questions, submitAnswerOrSkip, isMock, isTotalTime]);
+
+  // -------- Whole-test countdown (total-time mode) --------
+  useEffect(() => {
+    if (!isTotalTime || !started || !totalDeadlineRef.current) return;
+    const tick = () => {
+      const left = Math.max(0, Math.ceil((totalDeadlineRef.current - Date.now()) / 1000));
+      setTotalLeft(left);
+      if (left === 0) {
+        clearInterval(intervalId);
+        finish(false);
+      }
+    };
+    const intervalId = setInterval(tick, 250);
+    tick();
+    return () => clearInterval(intervalId);
+  }, [isTotalTime, started, finish]);
 
   // -------- Violation handler --------
   const handleViolation = useCallback(async (reason) => {
@@ -336,6 +361,24 @@ export default function Quiz() {
   }, [isMock, started]);
 
   // -------- Start the test (also enters fullscreen) --------
+  // Tell the server the test has started; total-time tests get their remaining time back
+  const beginTest = async () => {
+    try {
+      const { data } = await api.post('/students/quiz/start');
+      if (isTotalTime) {
+        const left = Number.isFinite(data?.remainingSeconds) ? data.remainingSeconds : totalSeconds;
+        totalDeadlineRef.current = Date.now() + left * 1000;
+        setTotalLeft(left);
+      }
+    } catch {
+      if (isTotalTime) {
+        totalDeadlineRef.current = Date.now() + totalSeconds * 1000;
+        setTotalLeft(totalSeconds);
+      }
+    }
+    setStarted(true);
+  };
+
   const handleStart = async () => {
     if (isMock) {
       setStarted(true);
@@ -363,7 +406,7 @@ export default function Quiz() {
     const requestFullscreen = el.requestFullscreen || el.webkitRequestFullscreen;
     if (!requestFullscreen) {
       setFullscreenError('Fullscreen is not supported on this device. The test will continue with tab and window monitoring.');
-      setStarted(true);
+      await beginTest();
       return;
     }
 
@@ -372,11 +415,10 @@ export default function Quiz() {
       await requestFullscreen.call(el, { navigationUI: 'hide' });
       if (!getFullscreenElement()) throw new Error('Fullscreen request was not accepted');
       enteredFullscreenRef.current = true;
-      setStarted(true);
     } catch {
       setFullscreenError('Fullscreen permission was unavailable. The test will continue with tab and window monitoring.');
-      setStarted(true);
     }
+    await beginTest();
   };
 
   const handleResumeFullscreen = async () => {
@@ -439,7 +481,15 @@ export default function Quiz() {
             </ul>
           ) : (
             <ul style={{ paddingLeft: 20, marginBottom: 20, lineHeight: 1.8 }}>
-              <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
+              {isTotalTime ? (
+                <li>
+                  You have <strong>{Math.round(totalSeconds / 60)} minutes</strong> for the whole test. Questions come one at
+                  a time and you can&apos;t go back; use <strong>Skip</strong> if you don&apos;t know an answer. When time runs out,
+                  the test is submitted automatically.
+                </li>
+              ) : (
+                <li>Each question has its own time limit. When time runs out, the next question loads automatically.</li>
+              )}
               <li>The test will run in <strong>fullscreen mode</strong>.</li>
               {webcamRequired && <li>A webcam is required and must remain enabled during the test.</li>}
               {webcamRequired && (
@@ -473,11 +523,14 @@ export default function Quiz() {
   const remaining = MAX_WARNINGS - warnings;
   const progressPct = ((idx) / questions.length) * 100;
 
+  // Timer shows the whole-test countdown in total-time mode, else this question's countdown
+  const shownTime = isTotalTime ? (totalLeft ?? totalSeconds) : timeLeft;
+  const shownLimit = isTotalTime ? totalSeconds : questionTimeLimit;
+
   // Timer visual state: green > yellow > red as time runs out
-  const timerLevel =
-    timeLeft <= 10 ? 'danger' :
-    timeLeft <= 20 ? 'warning' :
-    'ok';
+  const timerLevel = isTotalTime
+    ? (shownTime <= 60 ? 'danger' : shownTime <= 300 ? 'warning' : 'ok')
+    : (shownTime <= 10 ? 'danger' : shownTime <= 20 ? 'warning' : 'ok');
 
   return (
     <div className="quiz-container">
@@ -522,7 +575,7 @@ export default function Quiz() {
             <h3 style={{ color: 'var(--danger)', marginBottom: 8 }}>You left fullscreen mode</h3>
             <p className="text-muted mb-2">
               This is a recorded violation. You must return to fullscreen to keep answering questions.
-              The countdown for this question keeps running while you're out.
+              The countdown keeps running while you're out.
             </p>
             <button className="btn btn-primary btn-block" onClick={handleResumeFullscreen}>
               Resume Fullscreen
@@ -561,7 +614,7 @@ export default function Quiz() {
         )}
 
         {!isMock ? (
-          <div className={`quiz-timer quiz-timer-${timerLevel}`}>
+          <div className={`quiz-timer quiz-timer-${timerLevel}`} title={isTotalTime ? 'Time left for the whole test' : 'Time left for this question'}>
             <svg className="quiz-timer-ring" viewBox="0 0 36 36">
               <circle className="quiz-timer-ring-bg" cx="18" cy="18" r="15.9155" />
               <circle
@@ -569,11 +622,11 @@ export default function Quiz() {
                 cx="18"
                 cy="18"
                 r="15.9155"
-                strokeDasharray={`${(timeLeft / questionTimeLimit) * 100}, 100`}
+                strokeDasharray={`${(shownTime / shownLimit) * 100}, 100`}
               />
             </svg>
             <div className="quiz-timer-text">
-              {formatTime(timeLeft)}
+              {formatTime(shownTime)}
             </div>
           </div>
         ) : (
@@ -600,23 +653,30 @@ export default function Quiz() {
               <div className="question-title"><RichText value={q.title} /></div>
             </div>
             <div className="quiz-options">
-              {[
-                { letter: 'a', text: q.optionA },
-                { letter: 'b', text: q.optionB },
-                { letter: 'c', text: q.optionC },
-                { letter: 'd', text: q.optionD }
-              ].map(opt => (
+              {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => (
                 <button
-                  key={opt.letter}
-                  className={`option-btn ${selected === opt.letter ? 'is-selected' : ''}`}
-                  onClick={() => submitAnswerOrSkip(opt.letter)}
+                  key={key}
+                  className={`option-btn ${selected === key ? 'is-selected' : ''}`}
+                  onClick={() => submitAnswerOrSkip(key)}
                   disabled={submitting || outOfFullscreen}
                 >
-                  <span className="option-letter">{opt.letter.toUpperCase()}</span>
-                  <span className="option-text">{opt.text}</span>
+                  {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
+                  <span className="option-letter">{'ABCD'[pos]}</span>
+                  <span className="option-text">{q[`option${key.toUpperCase()}`]}</span>
                 </button>
               ))}
             </div>
+            {isTotalTime && (
+              <div className="text-right mt-2">
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => submitAnswerOrSkip(null)}
+                  disabled={submitting || outOfFullscreen}
+                >
+                  Skip question →
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

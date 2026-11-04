@@ -85,12 +85,12 @@ export default function MockResults() {
             const studentAnswer = q.studentAnswer?.selected;
             const isCorrect = q.studentAnswer?.isCorrect;
             const optionLabels = { a: 'A', b: 'B', c: 'C', d: 'D' };
-            const options = [
-              { key: 'a', label: 'A', text: q.optionA },
-              { key: 'b', label: 'B', text: q.optionB },
-              { key: 'c', label: 'C', text: q.optionC },
-              { key: 'd', label: 'D', text: q.optionD }
-            ];
+            // Options in the order the student saw them; labels follow that order
+            const options = (q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => ({
+              key,
+              label: 'ABCD'[pos],
+              text: q[`option${key.toUpperCase()}`]
+            }));
 
             return (
               <div

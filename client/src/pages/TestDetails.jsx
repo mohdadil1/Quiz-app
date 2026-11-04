@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import TestTimingFields from '../components/TestTimingFields';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 import RichTextEditor, { RichText } from '../components/RichTextEditor';
@@ -45,11 +46,14 @@ export default function TestDetails() {
         totalQuestions: test.totalQuestions,
         status: test.status,
         mode: test.mode,
-        webcamProctoring: test.webcamProctoring !== false
+        webcamProctoring: test.webcamProctoring !== false,
+        timingMode: test.timingMode || 'PER_QUESTION',
+        totalTimeMinutes: test.totalTimeMinutes ?? 30,
+        shuffle: test.shuffle !== false
       });
       setMsg({ type: 'success', text: 'General settings updated successfully' });
-    } catch {
-      setMsg({ type: 'error', text: 'Error updating settings' });
+    } catch (e) {
+      setMsg({ type: 'error', text: e?.response?.data?.message || 'Error updating settings' });
     }
   };
 
@@ -187,6 +191,7 @@ export default function TestDetails() {
               />
               <span>Enable webcam proctoring for this test</span>
             </label>
+            <TestTimingFields value={test} onChange={(changes) => setTest({ ...test, ...changes })} />
               <div className="form-group">
                 <label>Status</label>
                 <select className="form-control" value={test.status} onChange={(e) => setTest({ ...test, status: e.target.value })}>

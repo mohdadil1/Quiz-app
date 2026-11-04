@@ -22,7 +22,12 @@ const testSchema = new mongoose.Schema(
       enum: ['STANDARD', 'MOCK'],
       default: 'STANDARD'
     },
-    webcamProctoring: { type: Boolean, default: true }
+    webcamProctoring: { type: Boolean, default: true },
+    // PER_QUESTION: each question has its own countdown. TOTAL: one countdown for the whole test.
+    timingMode: { type: String, enum: ['PER_QUESTION', 'TOTAL'], default: 'PER_QUESTION' },
+    totalTimeMinutes: { type: Number, min: 1, max: 600, default: 30 },
+    // Give each student their own (stable) order of questions and options
+    shuffle: { type: Boolean, default: true }
   },
   { timestamps: true }
 );

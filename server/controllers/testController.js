@@ -8,6 +8,23 @@ const StudentAnswer = require('../models/StudentAnswer');
 
 const USN_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 
+// Validate and copy the timing / shuffle settings from a request body onto a test.
+// Returns an error message, or null when everything is valid.
+function applyTestOptions(test, body) {
+  const { timingMode, totalTimeMinutes, shuffle } = body;
+  if (timingMode !== undefined) {
+    if (!['PER_QUESTION', 'TOTAL'].includes(timingMode)) return 'Invalid timing mode';
+    test.timingMode = timingMode;
+  }
+  if (totalTimeMinutes !== undefined) {
+    const minutes = Number(totalTimeMinutes);
+    if (!Number.isFinite(minutes) || minutes < 1 || minutes > 600) return 'Total time must be between 1 and 600 minutes';
+    test.totalTimeMinutes = Math.round(minutes);
+  }
+  if (shuffle !== undefined) test.shuffle = shuffle === true;
+  return null;
+}
+
 // Delete guest (classless) student records, keeping any still enrolled in another test
 async function deleteUnusedGuests(studentIds) {
   if (!studentIds.length) return;
@@ -66,7 +83,7 @@ exports.createTest = async (req, res) => {
   const cls = await Class.findOne({ _id: classId, teacher: req.user.id });
   if (!cls) return res.status(404).json({ message: 'Class not found' });
 
-  const test = await Test.create({
+  const test = new Test({
     teacher: req.user.id,
     name,
     subject,
@@ -77,6 +94,9 @@ exports.createTest = async (req, res) => {
     mode: mode === 'MOCK' ? 'MOCK' : 'STANDARD',
     webcamProctoring: webcamProctoring !== false
   });
+  const optionsError = applyTestOptions(test, req.body);
+  if (optionsError) return res.status(400).json({ message: optionsError });
+  await test.save();
 
   // Create per-test student rows for every student record in this class
   const students = await StudentRecord.find({ class: cls._id });
@@ -116,6 +136,8 @@ exports.updateTest = async (req, res) => {
     test.mode = mode;
   }
   if (webcamProctoring !== undefined) test.webcamProctoring = webcamProctoring === true;
+  const optionsError = applyTestOptions(test, req.body);
+  if (optionsError) return res.status(400).json({ message: optionsError });
   await test.save();
   res.json(test);
 };

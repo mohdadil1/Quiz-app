@@ -50,6 +50,7 @@ exports.login = async (req, res) => {
     ts.violationTypes = [];
     ts.autoSubmitted = false;
     ts.started = false;
+    ts.startedAt = null;
     await StudentAnswer.deleteMany({ testStudent: ts._id });
   }
 
@@ -103,7 +104,9 @@ exports.login = async (req, res) => {
     testName: ts.test.name,
     testStatus: ts.test.status,
     testMode: ts.test.mode,
-    webcamProctoring: ts.test.webcamProctoring !== false
+    webcamProctoring: ts.test.webcamProctoring !== false,
+    timingMode: ts.test.timingMode || 'PER_QUESTION',
+    totalTimeMinutes: ts.test.totalTimeMinutes || 30
   });
 };
 
@@ -138,7 +141,7 @@ exports.dashboard = async (req, res) => {
  * identical — the client doesn't see correctAns either way.
  */
 exports.getQuestions = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId);
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test', 'shuffle');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
 
@@ -146,22 +149,78 @@ exports.getQuestions = async (req, res) => {
   ts.started = true;
   await ts.save();
 
-  const questions = await Question.find({ test: ts.test })
+  const questions = await Question.find({ test: ts.test._id })
     .select('title optionA optionB optionC optionD score timeLimit')
     .sort({ createdAt: 1 });
 
-  // Shuffle questions for this student
-  for (let i = questions.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [questions[i], questions[j]] = [questions[j], questions[i]];
-  }
-
-  res.json(questions.map((question) => ({
+  res.json(orderForStudent(ts, questions).map(({ question, optionOrder }) => ({
     ...question.toObject(),
+    // Display order of the options; the client still sends the original letter
+    optionOrder,
     timeLimit: Number.isFinite(Number(question.timeLimit)) && Number(question.timeLimit) >= 0.25
       ? Number(question.timeLimit)
       : 1
   })));
+};
+
+// Shuffled tests: a stable order of questions and options per student (seeded by their
+// test entry), so a reconnect or the results page shows the same order, but neighbours
+// see different ones. `ts.test` must be populated.
+function orderForStudent(ts, questions) {
+  const letters = ['a', 'b', 'c', 'd'];
+  if (ts.test.shuffle === false) return questions.map((question) => ({ question, optionOrder: letters }));
+  const random = seededRandom(String(ts._id));
+  return shuffled(questions, random).map((question) => ({ question, optionOrder: shuffled(letters, random) }));
+}
+
+// Small deterministic PRNG (mulberry32) seeded from a string
+function seededRandom(seedText) {
+  let seed = 0;
+  for (const ch of seedText) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) | 0;
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function shuffled(items, random) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+// Seconds the student has left in a total-time test (null when the test isn't total-time)
+const TOTAL_TIME_GRACE_MS = 15 * 1000; // allow for network delay on the last answer
+function remainingMs(ts, test) {
+  if (test.mode === 'MOCK' || test.timingMode !== 'TOTAL' || !ts.startedAt) return null;
+  return ts.startedAt.getTime() + (test.totalTimeMinutes || 30) * 60 * 1000 - Date.now();
+}
+
+/**
+ * POST /api/quiz/start
+ * Records when the student pressed Start (only the first time), and for total-time
+ * tests returns how much time is left — the server owns the deadline, so a reload
+ * or a changed clock can't buy extra time.
+ */
+exports.startQuiz = async (req, res) => {
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  if (!ts) return res.status(404).json({ message: 'Not found' });
+  if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
+
+  if (!ts.startedAt) {
+    ts.startedAt = new Date();
+    await ts.save();
+  }
+  const left = remainingMs(ts, ts.test);
+  res.json({
+    timingMode: ts.test.mode === 'MOCK' ? 'NONE' : (ts.test.timingMode || 'PER_QUESTION'),
+    remainingSeconds: left === null ? null : Math.max(0, Math.floor(left / 1000))
+  });
 };
 
 /**
@@ -176,13 +235,17 @@ exports.submitAnswer = async (req, res) => {
     return res.status(400).json({ message: 'selectedOption must be A, B, C or D' });
   }
 
-  const ts = await TestStudent.findById(req.user.testStudentId);
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
+  const left = remainingMs(ts, ts.test);
+  if (left !== null && left < -TOTAL_TIME_GRACE_MS) {
+    return res.status(410).json({ message: 'Time is up' });
+  }
 
   const q = await Question.findById(questionId);
   if (!q) return res.status(404).json({ message: 'Question not found' });
-  if (String(q.test) !== String(ts.test)) {
+  if (String(q.test) !== String(ts.test._id)) {
     return res.status(403).json({ message: 'Question not part of your test' });
   }
 
@@ -238,6 +301,7 @@ exports.finish = async (req, res) => {
     ts.score = 0;
     ts.violations = 0;
     ts.autoSubmitted = false;
+    ts.startedAt = null;
   }
   ts.active = false;
   if (req.body.autoSubmitted && ts.test.mode !== 'MOCK') ts.autoSubmitted = true;
@@ -284,7 +348,7 @@ exports.getResults = async (req, res) => {
   if (ts.test.mode !== 'MOCK') return res.status(403).json({ message: 'Not available for standard tests' });
 
   // Get all questions for this test with correct answers
-  const questions = await Question.find({ test: ts.test })
+  const questions = await Question.find({ test: ts.test._id })
     .select('title optionA optionB optionC optionD correctAns score')
     .sort({ createdAt: 1 });
 
@@ -313,8 +377,10 @@ exports.getResults = async (req, res) => {
   });
 
   // Combine questions with student answers
-  const results = questions.map(q => ({
+  // Same question and option order the student saw during the test
+  const results = orderForStudent(ts, questions).map(({ question: q, optionOrder }) => ({
     _id: q._id,
+    optionOrder,
     title: q.title,
     optionA: q.optionA,
     optionB: q.optionB,

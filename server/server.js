@@ -1,5 +1,7 @@
 require('dotenv').config();
 const express = require('express');
+// Route errors thrown in async handlers go to the error handler below instead of crashing the process
+require('express-async-errors');
 const cors = require('cors');
 const connectDB = require('./config/db');
 
@@ -53,8 +55,11 @@ app.use((req, res) => res.status(404).json({ message: 'Not found' }));
 
 // Error handler — any uncaught throw inside an async controller lands here
 app.use((err, _req, res, _next) => {
+  // A malformed id in the URL (e.g. /api/tests/abc) is a missing record, not a server fault
+  if (err.name === 'CastError') return res.status(404).json({ message: 'Not found' });
+  if (err.name === 'MulterError') return res.status(400).json({ message: err.message });
   console.error('[error]', err);
-  res.status(err.status || 500).json({ message: err.message || 'Server error' });
+  res.status(err.status || 500).json({ message: err.status ? err.message : 'Server error' });
 });
 
 module.exports = app;

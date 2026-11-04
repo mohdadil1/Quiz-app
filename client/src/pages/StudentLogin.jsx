@@ -37,7 +37,9 @@ export default function StudentLogin() {
         testName: data.testName,
         testStatus: data.testStatus,
         testMode: data.testMode,
-        webcamProctoring: data.webcamProctoring !== false
+        webcamProctoring: data.webcamProctoring !== false,
+        timingMode: data.timingMode || 'PER_QUESTION',
+        totalTimeMinutes: data.totalTimeMinutes
       });
       navigate('/student/dashboard');
     } catch (e) {

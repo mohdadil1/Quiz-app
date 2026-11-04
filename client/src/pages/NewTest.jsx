@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import TestTimingFields from '../components/TestTimingFields';
 
 export default function NewTest() {
   const [classes, setClasses] = useState([]);
@@ -13,6 +14,9 @@ export default function NewTest() {
     status: 'PENDING',
     mode: 'STANDARD',
     webcamProctoring: true,
+    timingMode: 'PER_QUESTION',
+    totalTimeMinutes: 30,
+    shuffle: true,
     classId: ''
   });
   const [err, setErr] = useState('');
@@ -90,6 +94,7 @@ export default function NewTest() {
               />
               <span>Enable webcam proctoring for this test</span>
             </label>
+            <TestTimingFields value={form} onChange={(changes) => setForm({ ...form, ...changes })} />
             <div className="row row-2">
               <div className="form-group">
                 <label>Class</label>
