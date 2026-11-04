@@ -34,12 +34,12 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           )}
         </div>
         <nav>
+          <NavLink to="/admin/profile" onClick={handleNavClick}>Profile</NavLink>
           <NavLink to="/admin/dashboard" end onClick={handleNavClick}>Dashboard</NavLink>
           <NavLink to="/admin/data" onClick={handleNavClick}>Add Class / Student</NavLink>
           <NavLink to="/admin/student-data" onClick={handleNavClick}>Get Student Data</NavLink>
           <NavLink to="/admin/statistics" onClick={handleNavClick}>Statistics</NavLink>
           <NavLink to="/admin/view-data" onClick={handleNavClick}>View Data</NavLink>
-          <NavLink to="/admin/profile" onClick={handleNavClick}>Profile</NavLink>
           <a href="#logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
         </nav>
         <div className="sidebar-credit">Made by Dil <span role="img" aria-label="love">❤️</span></div>
