@@ -71,6 +71,17 @@ h1, h2, h3, h4, h5, h6 {
   height: 100vh;
   overflow-y: auto;
   z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+/* Watermark pinned to the bottom of the sidebar */
+.sidebar-credit {
+  margin-top: auto;
+  padding: 16px 24px 0;
+  font-size: 0.8rem;
+  color: #8a8a8a;
+  text-align: center;
+  user-select: none;
 }
 .sidebar .brand {
   font-size: 1.5rem;
