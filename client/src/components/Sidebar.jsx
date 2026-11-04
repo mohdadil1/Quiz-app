@@ -42,7 +42,7 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           <NavLink to="/admin/view-data" onClick={handleNavClick}>View Data</NavLink>
           <a href="#logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
         </nav>
-        <div className="sidebar-credit">Made by Dil <span role="img" aria-label="love">❤️</span></div>
+        <div className="sidebar-credit">Made by Teachers <span role="img" aria-label="love">❤️</span></div>
       </aside>
     </>
   );
