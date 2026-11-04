@@ -19,12 +19,11 @@ exports.login = async (req, res) => {
     return res.status(400).json({ message: 'rollno and password required' });
   }
 
+  // USN + password identify the student (USN ignores case). The typed name is not checked —
+  // it is only used as a display name when the record has none.
   const query = { rollno: String(rollno).trim().toUpperCase() };
-  if (name && String(name).trim().length) {
-    query.name = String(name).trim();
-  }
 
-  // Find any student record(s) with this roll number (and optional name) for class or guest students.
+  // Find any student record(s) with this USN, for class or guest students.
   const studentRecords = await StudentRecord.find(query);
   if (!studentRecords.length) {
     return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });

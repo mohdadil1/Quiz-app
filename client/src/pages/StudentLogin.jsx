@@ -16,8 +16,8 @@ export default function StudentLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!rollno || !name || !password) {
-      setErr('Please enter roll number, name, and password');
+    if (!rollno.trim() || !password) {
+      setErr('Please enter your USN and password');
       return;
     }
     setLoading(true);
@@ -67,13 +67,13 @@ export default function StudentLogin() {
             />
           </div>
           <div className="form-group">
-            <label>Name</label>
+            <label>Name <span className="text-muted">(optional)</span></label>
             <input
               type="text"
               className="form-control"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Name"
+              placeholder="Your name"
             />
           </div>
           <div className="form-group">
