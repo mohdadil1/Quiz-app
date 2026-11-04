@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// VITE_API_URL may be given with or without the trailing /api — every route lives under /api
+const apiRoot = (import.meta.env.VITE_API_URL || 'https://quiz-app-backend-drab.vercel.app').replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'https://quiz-app-backend-drab.vercel.app/api'
+  baseURL: apiRoot.endsWith('/api') ? apiRoot : `${apiRoot}/api`
 });
 
 // Attach the saved JWT (if any) to every outgoing request
