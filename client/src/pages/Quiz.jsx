@@ -20,6 +20,7 @@ function getQuestionTimeLimit(question) {
 // Banner text for the most recent violation
 const VIOLATION_MESSAGES = {
   'tab-switch': 'Do not switch tabs or minimize the window.',
+  'focus-lost': 'Do not open assistants, overlays or other apps over the test.',
   'fullscreen-exit': 'Do not exit fullscreen.',
   'camera-disabled': 'Keep your camera turned on.',
   'looking-away': 'Keep looking at the screen.',
@@ -36,6 +37,21 @@ const CAMERA_STATUS = {
   'multiple-faces': { label: 'Multiple faces!', tone: 'alert' },
   unavailable: { label: 'Camera active', tone: 'ok' }
 };
+
+// Proctored tests on Android must run in Google Chrome: other Android browsers
+// (Samsung Internet, MIUI, Opera, in-app WebViews…) don't report focus loss reliably
+// when an assistant/overlay opens. Desktop browsers are not restricted.
+function isAndroidNonChrome() {
+  const ua = navigator.userAgent || '';
+  if (!/Android/i.test(ua)) return false;
+  const brands = navigator.userAgentData?.brands;
+  if (Array.isArray(brands) && brands.length) {
+    return !brands.some((b) => b.brand === 'Google Chrome');
+  }
+  // Fallback for browsers without User-Agent Client Hints
+  const notChrome = /SamsungBrowser|MiuiBrowser|XiaoMi|OPR\/|Opera|EdgA|Firefox|FxiOS|UCBrowser|YaBrowser|HeyTapBrowser|VivoBrowser|OppoBrowser|Brave|DuckDuckGo|; wv\)|Version\/\d/i;
+  return !/Chrome\/\d/.test(ua) || notChrome.test(ua);
+}
 
 function getFullscreenElement() {
   return document.fullscreenElement || document.webkitFullscreenElement;
@@ -55,6 +71,7 @@ export default function Quiz() {
   const [lastViolation, setLastViolation] = useState(null);
   const [fullscreenError, setFullscreenError] = useState('');
   const [outOfFullscreen, setOutOfFullscreen] = useState(false);
+  const [windowFocused, setWindowFocused] = useState(true); // question is hidden while false
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [started, setStarted] = useState(false); // show "Start" screen first (needed for fullscreen)
@@ -74,6 +91,7 @@ export default function Quiz() {
   const questionsLoadStartedRef = useRef(false);
   const lastViolationAtRef = useRef(0);
   const enteredFullscreenRef = useRef(false);
+  const suppressBlurRef = useRef(false); // our own confirm() dialog also blurs the window
   const videoRef = useRef(null);
   const cameraStreamRef = useRef(null);
 
@@ -296,6 +314,50 @@ export default function Quiz() {
     };
   }, [isMock, started, handleViolation]);
 
+  // -------- Anti-cheat: focus loss (Google Assistant, Gemini, Circle to Search, overlays) --------
+  // Screen assistants open as an overlay window: the page stays "visible", so
+  // visibilitychange never fires, but the window loses focus. Hide the question
+  // the moment focus goes and record a violation if it wasn't a plain tab switch.
+  useEffect(() => {
+    if (isMock || !started) return;
+
+    let blurTimer = null;
+    let lost = false; // one violation per focus-loss episode
+    const onBlur = () => {
+      if (lost || finishedRef.current || suppressBlurRef.current) return;
+      lost = true;
+      setWindowFocused(false);
+      clearTimeout(blurTimer);
+      // Give visibilitychange a moment so a tab switch is logged as 'tab-switch'
+      blurTimer = setTimeout(() => {
+        if (!document.hidden && !document.hasFocus()) handleViolation('focus-lost');
+      }, 400);
+    };
+    const onFocus = () => {
+      clearTimeout(blurTimer);
+      lost = false;
+      setWindowFocused(true);
+    };
+
+    // Backup check: some phones/overlays never fire 'blur', so poll focus directly.
+    const pollId = setInterval(() => {
+      if (suppressBlurRef.current) return;
+      const focused = document.hasFocus();
+      if (!focused && !lost) onBlur();
+      else if (focused && lost) onFocus();
+    }, 500);
+
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('focus', onFocus);
+    if (!document.hasFocus()) onBlur();
+    return () => {
+      clearTimeout(blurTimer);
+      clearInterval(pollId);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [isMock, started, handleViolation]);
+
   // -------- Anti-cheat: fullscreen --------
   useEffect(() => {
     if (isMock || !started) return;
@@ -389,6 +451,7 @@ export default function Quiz() {
       setStarted(true);
       return;
     }
+    if (isAndroidNonChrome()) return; // start button is disabled; guard anyway
 
     if (webcamRequired) {
       setCameraError('');
@@ -442,9 +505,11 @@ export default function Quiz() {
   };
 
   const handleManualLogout = () => {
-    if (confirm('Are you sure you want to abort the test? Your progress so far will be saved.')) {
-      finish(true);
-    }
+    suppressBlurRef.current = true;
+    const ok = confirm('Are you sure you want to abort the test? Your progress so far will be saved.');
+    suppressBlurRef.current = false;
+    setWindowFocused(true);
+    if (ok) finish(true);
   };
 
   // -------- Loading / error states --------
@@ -469,6 +534,7 @@ export default function Quiz() {
   // -------- "Start Test" screen (required to trigger fullscreen from a user gesture) --------
   if (!started) {
     const minutes = Math.round(totalSeconds / 60);
+    const requireChrome = !isMock && isAndroidNonChrome();
     const rules = isMock
       ? [
           ['📝', 'This is a practice test — no timer, no proctoring, no warnings.'],
@@ -482,7 +548,8 @@ export default function Quiz() {
           ...(webcamRequired
             ? [['📷', <>Keep your camera on, your face visible, and <strong>look at the screen</strong>.</>]]
             : []),
-          ['🚫', 'Right-click, copy and developer tools are disabled.'],
+          ['🚫', 'Right-click, copy, text selection and developer tools are disabled.'],
+          ['🤖', <>Don&apos;t open <strong>Google Assistant, Gemini, Circle to Search</strong> or any overlay — the question hides and it counts as a warning.</>],
           ['⚠️', <>On the <strong>{ordinal(MAX_WARNINGS)} warning</strong> your test is submitted automatically.</>]
         ];
 
@@ -518,7 +585,13 @@ export default function Quiz() {
 
           {fullscreenError && <div className="alert alert-error">{fullscreenError}</div>}
           {cameraError && <div className="alert alert-error">{cameraError}</div>}
-          <button className="btn btn-primary btn-block btn-lg" onClick={handleStart}>
+          {requireChrome && (
+            <div className="alert alert-error">
+              This test must be taken in <strong>Google Chrome</strong>. Open this page in Chrome
+              (install it from the Play Store if needed), log in again, and start the test there.
+            </div>
+          )}
+          <button className="btn btn-primary btn-block btn-lg" onClick={handleStart} disabled={requireChrome}>
             I understand — Start Test
           </button>
         </div>
@@ -652,14 +725,22 @@ export default function Quiz() {
         <div className="quiz-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
 
-      <div className="quiz-card">
+      <div className={`quiz-card ${isMock ? '' : 'quiz-card--protected'}`}>
         {submitting ? (
           <div className="loader" />
+        ) : !windowFocused && !isMock ? (
+          <div className="quiz-hidden-notice" role="alert">
+            <h3>Question hidden</h3>
+            <p className="text-muted">
+              The test window lost focus. Close any assistant, overlay or other app
+              and tap here to continue. This has been recorded.
+            </p>
+          </div>
         ) : (
           <>
             <div className="question-header">
               <span className="question-number">{idx + 1}</span>
-              <div className="question-title"><RichText value={q.title} /></div>
+              <div className="question-title" aria-hidden={isMock ? undefined : 'true'}><RichText value={q.title} /></div>
             </div>
             <div className="quiz-options">
               {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => (
@@ -668,10 +749,11 @@ export default function Quiz() {
                   className={`option-btn ${selected === key ? 'is-selected' : ''}`}
                   onClick={() => submitAnswerOrSkip(key)}
                   disabled={submitting || outOfFullscreen}
+                  aria-label={isMock ? undefined : `Option ${'ABCD'[pos]}`}
                 >
                   {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
                   <span className="option-letter">{'ABCD'[pos]}</span>
-                  <span className="option-text">{q[`option${key.toUpperCase()}`]}</span>
+                  <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>{q[`option${key.toUpperCase()}`]}</span>
                 </button>
               ))}
             </div>

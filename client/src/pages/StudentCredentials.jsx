@@ -7,6 +7,8 @@ import SortHeader, { DEFAULT_SORT, sortStudents, nextSort } from '../components/
 function describeViolation(type) {
   return {
     'tab-switch': 'Switched browser tab or window',
+    'focus-lost': 'Opened an assistant or overlay (e.g. Google Assistant)',
+    'second-device-login': 'Tried to log in from a second device',
     'fullscreen-exit': 'Exited fullscreen mode',
     'camera-disabled': 'Camera was disabled or disconnected',
     'looking-away': 'Looked away from the screen',
@@ -237,6 +239,26 @@ export default function StudentCredentials() {
                               >
                                 Edit
                               </button>
+                              {r.deviceLocked && (
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  title="Use if the student's device died or crashed. Signs out the current device so the student can log in on another one."
+                                  onClick={async () => {
+                                    if (!confirm(`Unlock ${r.rollno}? Their current device will be signed out and they can log in on a new device.`)) return;
+                                    setError('');
+                                    try {
+                                      await api.post(`/tests/${id}/students/${r.testStudentId}/unlock`);
+                                      setRows(rows.map((row) => row.testStudentId === r.testStudentId
+                                        ? { ...row, deviceLocked: false, active: false }
+                                        : row));
+                                    } catch (e) {
+                                      setError(e?.response?.data?.message || 'Failed to unlock device');
+                                    }
+                                  }}
+                                >
+                                  Unlock device
+                                </button>
+                              )}
                               <button
                                 className="btn btn-danger btn-sm"
                                 onClick={async () => {

@@ -22,6 +22,11 @@ api.interceptors.response.use(
   (err) => {
     if (err?.response?.status === 401) {
       const role = localStorage.getItem('quizora_role');
+      if (err.response.data?.message === 'SESSION_REPLACED') {
+        try {
+          sessionStorage.setItem('quizora_signed_out', 'You were signed out because this test was opened on another device or unlocked by your teacher.');
+        } catch { /* ignore */ }
+      }
       localStorage.removeItem('quizora_token');
       localStorage.removeItem('quizora_role');
       localStorage.removeItem('quizora_user');

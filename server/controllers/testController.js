@@ -223,8 +223,27 @@ exports.listCredentials = async (req, res) => {
     active: r.active,
     started: r.started,
     violations: r.violations || 0,
-    violationTypes: r.violationTypes || []
+    violationTypes: r.violationTypes || [],
+    deviceLocked: !!(r.deviceId && r.startedAt && !r.submitted)
   })));
+};
+
+// POST /api/tests/:id/students/:testStudentId/unlock
+// Releases the one-device lock (e.g. the student's phone died) and signs out
+// whichever device currently holds the test, so the student can log in again.
+exports.unlockStudentDevice = async (req, res) => {
+  const test = await Test.findById(req.params.id);
+  if (!test) return res.status(404).json({ message: 'Not found' });
+  if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+
+  const ts = await TestStudent.findOne({ _id: req.params.testStudentId, test: test._id });
+  if (!ts) return res.status(404).json({ message: 'Student not found for this test' });
+
+  ts.deviceId = null;
+  ts.sessionToken = crypto.randomBytes(16).toString('hex'); // invalidates the current token
+  ts.active = false;
+  await ts.save();
+  res.json({ ok: true });
 };
 
 exports.updateStudentRecord = async (req, res) => {

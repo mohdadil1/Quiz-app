@@ -39,6 +39,10 @@ function requireAuth(roles) {
         if (ts.test?.mode !== 'MOCK' && !ts.active && !ts.submitted) {
           return res.status(401).json({ message: 'Session expired' });
         }
+        // Single active login: a newer login (or a teacher unlock) replaces this token
+        if (ts.test?.mode !== 'MOCK' && !ts.submitted && ts.sessionToken && decoded.sid !== ts.sessionToken) {
+          return res.status(401).json({ message: 'SESSION_REPLACED' });
+        }
       }
 
       req.user = decoded; // { id, role, sessionId, ... }

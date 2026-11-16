@@ -4,11 +4,38 @@ import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import PasswordInput from '../components/PasswordInput';
 
+// Random id that stays in this browser, so the server can tell devices apart
+// (Chrome on Android reports almost the same user agent on every phone).
+function getDeviceId() {
+  const KEY = 'quizora_device_id';
+  try {
+    let id = localStorage.getItem(KEY);
+    if (!id) {
+      id = crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(KEY, id);
+    }
+    return id;
+  } catch {
+    return '';
+  }
+}
+
+// Shown once after this browser was signed out because the test was opened elsewhere
+function takeSignedOutNotice() {
+  try {
+    const msg = sessionStorage.getItem('quizora_signed_out');
+    sessionStorage.removeItem('quizora_signed_out');
+    return msg || '';
+  } catch {
+    return '';
+  }
+}
+
 export default function StudentLogin() {
   const [rollno, setRollno] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [err, setErr] = useState('');
+  const [err, setErr] = useState(takeSignedOutNotice);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -29,7 +56,7 @@ export default function StudentLogin() {
         screenResolution: `${screen.width}x${screen.height}`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
-      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), password, deviceInfo });
+      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), password, deviceInfo, deviceId: getDeviceId() });
       login(data.token, 'student', {
         rollno: data.rollno,
         name: data.name || name.trim(),
@@ -43,7 +70,11 @@ export default function StudentLogin() {
       });
       navigate('/student/dashboard');
     } catch (e) {
-      setErr('Wrong credentials entered');
+      if (e?.response?.data?.message === 'TEST_OPEN_ON_ANOTHER_DEVICE') {
+        setErr('This test is already in progress on another device. Continue on that device, or ask your teacher to unlock it. This attempt has been recorded.');
+      } else {
+        setErr('Wrong credentials entered');
+      }
     } finally {
       setLoading(false);
     }

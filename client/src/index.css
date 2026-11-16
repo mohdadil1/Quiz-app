@@ -639,6 +639,20 @@ select.form-control {
   width: 100%;
   overflow-x: hidden;
 }
+.quiz-card--protected,
+.quiz-card--protected * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none; /* no long-press "Search / Copy / Translate" menu */
+}
+.quiz-hidden-notice {
+  text-align: center;
+  padding: 40px 12px;
+}
+.quiz-hidden-notice h3 {
+  color: var(--danger);
+  margin-bottom: 8px;
+}
 .quiz-card {
   background: var(--surface);
   border-radius: var(--radius);

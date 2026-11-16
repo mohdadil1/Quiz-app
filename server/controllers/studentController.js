@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const StudentRecord = require('../models/StudentRecord');
 const Test = require('../models/Test');
 const TestStudent = require('../models/TestStudent');
@@ -15,6 +16,7 @@ const { sign } = require('../middleware/auth');
  */
 exports.login = async (req, res) => {
   const { rollno, password, name, deviceInfo } = req.body;
+  const deviceId = typeof req.body.deviceId === 'string' ? req.body.deviceId.slice(0, 100) : '';
   if (!rollno || !password) {
     return res.status(400).json({ message: 'rollno and password required' });
   }
@@ -57,18 +59,21 @@ exports.login = async (req, res) => {
   if (alreadySubmitted) {
     // no device lock, no "active" flag: nothing to protect any more
   } else if (ts.test.mode !== 'MOCK') {
-    // For STANDARD tests enforce single-device active lock
-    // Check if already active from another device
-    if (ts.active && deviceInfo && ts.deviceInfo) {
-      if (deviceInfo.userAgent !== ts.deviceInfo.userAgent || deviceInfo.platform !== ts.deviceInfo.platform) {
-        return res.status(409).json({ message: 'Already logged in from another device' });
-      }
+    // STANDARD tests: one device per student.
+    // Before the student presses Start, the newest login takes over (the older device's
+    // token stops working). After Start, only the device that started may log back in.
+    if (ts.startedAt && ts.deviceId && deviceId !== ts.deviceId) {
+      await TestStudent.updateOne(
+        { _id: ts._id, submitted: false },
+        { $inc: { violations: 1 }, $push: { violationTypes: 'second-device-login' } }
+      );
+      return res.status(409).json({ message: 'TEST_OPEN_ON_ANOTHER_DEVICE' });
     }
 
-    // Store device info and set active
     if (deviceInfo) {
       ts.deviceInfo = deviceInfo;
     }
+    ts.deviceId = deviceId || null;
     ts.active = true;
   } else {
     // In MOCK mode we do not enforce proctoring/device locks but we still
@@ -79,6 +84,7 @@ exports.login = async (req, res) => {
 
   if (!alreadySubmitted) {
     ts.started = false;
+    ts.sessionToken = crypto.randomBytes(16).toString('hex');
     await ts.save();
   }
 
@@ -87,7 +93,8 @@ exports.login = async (req, res) => {
     role: 'student',
     testStudentId: ts._id.toString(),
     testId: ts.test._id.toString(),
-    rollno
+    rollno,
+    sid: ts.sessionToken || undefined
   });
 
   // Resolve the student's name from the matching StudentRecord (fall back to the
