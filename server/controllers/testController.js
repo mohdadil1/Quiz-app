@@ -224,7 +224,7 @@ exports.listCredentials = async (req, res) => {
     started: r.started,
     violations: r.violations || 0,
     violationTypes: r.violationTypes || [],
-    deviceLocked: !!(r.deviceId && r.startedAt && !r.submitted)
+    deviceLocked: !!(r.deviceId && !r.submitted)
   })));
 };
 

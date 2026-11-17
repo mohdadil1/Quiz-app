@@ -5,8 +5,9 @@ import TeacherLayout from '../components/TeacherLayout';
 
 function describeViolation(type) {
   return {
-    'tab-switch': 'Switched browser tab or window',
-    'focus-lost': 'Opened an assistant or overlay (e.g. Google Assistant)',
+    'tab-switch': 'Tab switching',
+    'assistant-opened': 'Google Assistant / screen assistant opened',
+    'focus-lost': 'Switched to another window or app',
     'second-device-login': 'Tried to log in from a second device',
     'fullscreen-exit': 'Exited fullscreen mode',
     'camera-disabled': 'Camera was disabled or disconnected',

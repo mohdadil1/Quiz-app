@@ -59,10 +59,9 @@ exports.login = async (req, res) => {
   if (alreadySubmitted) {
     // no device lock, no "active" flag: nothing to protect any more
   } else if (ts.test.mode !== 'MOCK') {
-    // STANDARD tests: one device per student.
-    // Before the student presses Start, the newest login takes over (the older device's
-    // token stops working). After Start, only the device that started may log back in.
-    if (ts.startedAt && ts.deviceId && deviceId !== ts.deviceId) {
+    // STANDARD tests: one device per student. The first device that logs in owns the
+    // test; logins from any other device are refused until the teacher unlocks it.
+    if (ts.deviceId && deviceId !== ts.deviceId) {
       await TestStudent.updateOne(
         { _id: ts._id, submitted: false },
         { $inc: { violations: 1 }, $push: { violationTypes: 'second-device-login' } }

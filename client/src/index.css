@@ -645,6 +645,18 @@ select.form-control {
   user-select: none;
   -webkit-touch-callout: none; /* no long-press "Search / Copy / Translate" menu */
 }
+.quiz-card--protected {
+  position: relative;
+}
+/* Faint USN/name tile over the question so captured screenshots can be traced */
+.quiz-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 320px 160px;
+}
 .quiz-hidden-notice {
   text-align: center;
   padding: 40px 12px;

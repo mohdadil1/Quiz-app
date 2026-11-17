@@ -17,16 +17,23 @@ function getQuestionTimeLimit(question) {
   return (Number.isFinite(minutes) && minutes >= 0.25 ? minutes : 1) * 60;
 }
 
-// Banner text for the most recent violation
+// Banner text for the most recent violation: what was detected + what to do
 const VIOLATION_MESSAGES = {
-  'tab-switch': 'Do not switch tabs or minimize the window.',
-  'focus-lost': 'Do not open assistants, overlays or other apps over the test.',
-  'fullscreen-exit': 'Do not exit fullscreen.',
-  'camera-disabled': 'Keep your camera turned on.',
-  'looking-away': 'Keep looking at the screen.',
-  'face-not-visible': 'Keep your face visible to the camera.',
-  'multiple-faces': 'Only you may be in front of the camera.'
+  'tab-switch': 'Tab switching detected. Stay on the test tab and do not minimise the browser.',
+  'assistant-opened': 'Google Assistant / screen assistant detected (Assistant, Gemini or Circle to Search). Do not open assistants or overlays during the test.',
+  'focus-lost': 'Switching to another window or app detected. Keep the test window active.',
+  'fullscreen-exit': 'Fullscreen exit detected. Stay in fullscreen.',
+  'camera-disabled': 'Camera turned off. Keep your camera on.',
+  'looking-away': 'Looking away detected. Keep looking at the screen.',
+  'face-not-visible': 'Face not visible. Keep your face in front of the camera.',
+  'multiple-faces': 'Multiple faces detected. Only you may be in front of the camera.'
 };
+
+// Phones/tablets: a visible page losing focus there means an assistant or overlay opened
+function isMobileDevice() {
+  if (navigator.userAgentData?.mobile) return true;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
 
 // Camera badge label/colour for each face-monitor status
 const CAMERA_STATUS = {
@@ -51,6 +58,16 @@ function isAndroidNonChrome() {
   // Fallback for browsers without User-Agent Client Hints
   const notChrome = /SamsungBrowser|MiuiBrowser|XiaoMi|OPR\/|Opera|EdgA|Firefox|FxiOS|UCBrowser|YaBrowser|HeyTapBrowser|VivoBrowser|OppoBrowser|Brave|DuckDuckGo|; wv\)|Version\/\d/i;
   return !/Chrome\/\d/.test(ua) || notChrome.test(ua);
+}
+
+// Faint repeated "USN · Name · date" tile drawn over the question. A web page can't stop
+// Circle to Search / Gemini / screenshots, but any captured or shared image shows who it came from.
+function watermarkBackground(text) {
+  const safe = String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="160">`
+    + `<text x="160" y="80" text-anchor="middle" dominant-baseline="middle" transform="rotate(-24 160 80)" `
+    + `font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="rgba(128,128,128,0.22)">${safe}</text></svg>`;
+  return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
 }
 
 function getFullscreenElement() {
@@ -299,44 +316,63 @@ export default function Quiz() {
     handleViolation
   );
 
-  // -------- Anti-cheat: tab switch --------
+  // -------- Anti-cheat: leaving the test (tab switch, assistant, other app, fullscreen exit) --------
+  // One action fires several browser events: switching tabs on a phone also blurs the
+  // window and drops fullscreen; Google Assistant / Gemini / Circle to Search blur the
+  // window (and may drop fullscreen) while the page stays visible. So collect the events
+  // for a moment and record ONE violation that names what actually happened.
   useEffect(() => {
     if (isMock || !started) return;
+
+    const CLASSIFY_DELAY_MS = 700;
+    let pending = null; // { hidden, blurred, fullscreenExit, timer }
+    let lost = false;   // focus currently lost (one violation per episode)
+
+    const classify = () => {
+      const p = pending;
+      pending = null;
+      if (!p || finishedRef.current) return;
+      if (p.hidden || document.hidden) {
+        handleViolation('tab-switch');
+      } else if (p.blurred && !document.hasFocus()) {
+        // Page still visible but something else has focus
+        handleViolation(isMobileDevice() ? 'assistant-opened' : 'focus-lost');
+      } else if (p.fullscreenExit && !getFullscreenElement() && enteredFullscreenRef.current) {
+        handleViolation('fullscreen-exit');
+      }
+    };
+    const note = (signal) => {
+      if (finishedRef.current) return;
+      if (!pending) {
+        pending = { hidden: false, blurred: false, fullscreenExit: false };
+        pending.timer = setTimeout(classify, CLASSIFY_DELAY_MS);
+      }
+      pending[signal] = true;
+    };
 
     const onVisibilityChange = () => {
-      if (document.hidden) handleViolation('tab-switch');
+      if (document.hidden) note('hidden');
     };
 
-    document.addEventListener('visibilitychange', onVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [isMock, started, handleViolation]);
-
-  // -------- Anti-cheat: focus loss (Google Assistant, Gemini, Circle to Search, overlays) --------
-  // Screen assistants open as an overlay window: the page stays "visible", so
-  // visibilitychange never fires, but the window loses focus. Hide the question
-  // the moment focus goes and record a violation if it wasn't a plain tab switch.
-  useEffect(() => {
-    if (isMock || !started) return;
-
-    let blurTimer = null;
-    let lost = false; // one violation per focus-loss episode
     const onBlur = () => {
       if (lost || finishedRef.current || suppressBlurRef.current) return;
       lost = true;
-      setWindowFocused(false);
-      clearTimeout(blurTimer);
-      // Give visibilitychange a moment so a tab switch is logged as 'tab-switch'
-      blurTimer = setTimeout(() => {
-        if (!document.hidden && !document.hasFocus()) handleViolation('focus-lost');
-      }, 400);
+      setWindowFocused(false); // hide the question right away
+      note('blurred');
     };
     const onFocus = () => {
-      clearTimeout(blurTimer);
       lost = false;
       setWindowFocused(true);
+    };
+
+    const onFullscreenChange = () => {
+      if (finishedRef.current) return;
+      if (!getFullscreenElement() && enteredFullscreenRef.current) {
+        setOutOfFullscreen(true);
+        note('fullscreenExit');
+      } else if (getFullscreenElement()) {
+        setOutOfFullscreen(false);
+      }
     };
 
     // Backup check: some phones/overlays never fire 'blur', so poll focus directly.
@@ -347,33 +383,18 @@ export default function Quiz() {
       else if (focused && lost) onFocus();
     }, 500);
 
+    document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
-    if (!document.hasFocus()) onBlur();
-    return () => {
-      clearTimeout(blurTimer);
-      clearInterval(pollId);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [isMock, started, handleViolation]);
-
-  // -------- Anti-cheat: fullscreen --------
-  useEffect(() => {
-    if (isMock || !started) return;
-
-    const onFullscreenChange = () => {
-      if (finishedRef.current) return;
-      if (!getFullscreenElement() && enteredFullscreenRef.current) {
-        setOutOfFullscreen(true);
-        handleViolation('fullscreen-exit');
-      } else if (getFullscreenElement()) {
-        setOutOfFullscreen(false);
-      }
-    };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    if (!document.hasFocus()) onBlur();
     return () => {
+      if (pending) clearTimeout(pending.timer);
+      clearInterval(pollId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('focus', onFocus);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
     };
@@ -479,6 +500,12 @@ export default function Quiz() {
     }
 
     setFullscreenError('');
+    if (getFullscreenElement()) {
+      // Already fullscreen since login
+      enteredFullscreenRef.current = true;
+      await beginTest();
+      return;
+    }
     try {
       await requestFullscreen.call(el, { navigationUI: 'hide' });
       if (!getFullscreenElement()) throw new Error('Fullscreen request was not accepted');
@@ -530,6 +557,9 @@ export default function Quiz() {
 
   // Greet the student by name on the start screen
   const studentName = (user?.name && user.name.trim()) || `Student ${user?.rollno || ''}`;
+  const watermarkText = watermarkBackground(
+    [user?.rollno, user?.name?.trim(), new Date().toLocaleDateString()].filter(Boolean).join(' · ')
+  );
 
   // -------- "Start Test" screen (required to trigger fullscreen from a user gesture) --------
   if (!started) {
@@ -633,7 +663,7 @@ export default function Quiz() {
         >
           <span>
             ⚠️ <strong>Warning {warnings}/{MAX_WARNINGS}:</strong>{' '}
-            {VIOLATION_MESSAGES[lastViolation] || 'Do not switch tabs, minimize, or exit fullscreen.'}
+            {VIOLATION_MESSAGES[lastViolation] || 'Suspicious activity detected.'}
             {' '}{remaining > 0 ? `${remaining} warning${remaining === 1 ? '' : 's'} remaining before auto-submit.` : ''}
           </span>
           <button
@@ -726,6 +756,9 @@ export default function Quiz() {
       </div>
 
       <div className={`quiz-card ${isMock ? '' : 'quiz-card--protected'}`}>
+        {!isMock && (
+          <div className="quiz-watermark" aria-hidden="true" style={{ backgroundImage: watermarkText }} />
+        )}
         {submitting ? (
           <div className="loader" />
         ) : !windowFocused && !isMock ? (

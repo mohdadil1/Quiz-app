@@ -31,6 +31,25 @@ function takeSignedOutNotice() {
   }
 }
 
+// Fullscreen has to be requested straight from the click, so it is asked for
+// when the Login button is pressed (before the network call) and kept on the dashboard.
+function enterFullscreen() {
+  const el = document.documentElement;
+  if (document.fullscreenElement || document.webkitFullscreenElement) return;
+  const request = el.requestFullscreen || el.webkitRequestFullscreen;
+  try {
+    request?.call(el, { navigationUI: 'hide' })?.catch?.(() => {});
+  } catch { /* not supported */ }
+}
+
+function leaveFullscreen() {
+  if (!(document.fullscreenElement || document.webkitFullscreenElement)) return;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  try {
+    exit?.call(document)?.catch?.(() => {});
+  } catch { /* ignore */ }
+}
+
 export default function StudentLogin() {
   const [rollno, setRollno] = useState('');
   const [name, setName] = useState('');
@@ -47,6 +66,7 @@ export default function StudentLogin() {
       setErr('Please enter your USN and password');
       return;
     }
+    enterFullscreen();
     setLoading(true);
     try {
       const deviceInfo = {
@@ -68,10 +88,12 @@ export default function StudentLogin() {
         timingMode: data.timingMode || 'PER_QUESTION',
         totalTimeMinutes: data.totalTimeMinutes
       });
+      if (data.testMode === 'MOCK') leaveFullscreen(); // practice tests don't use fullscreen
       navigate('/student/dashboard');
     } catch (e) {
+      leaveFullscreen();
       if (e?.response?.data?.message === 'TEST_OPEN_ON_ANOTHER_DEVICE') {
-        setErr('This test is already in progress on another device. Continue on that device, or ask your teacher to unlock it. This attempt has been recorded.');
+        setErr('You are already logged in to this test on another device. Continue on that device, or ask your teacher to unlock it. This attempt has been recorded.');
       } else {
         setErr('Wrong credentials entered');
       }
