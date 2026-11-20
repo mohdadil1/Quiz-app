@@ -89,7 +89,7 @@ function isLookingAway(landmarks, blendshapes) {
 /**
  * @param {React.RefObject<HTMLVideoElement>} videoRef  the <video> showing the webcam stream
  * @param {boolean} enabled                              monitor only while the test is running
- * @param {(type: string) => void} onViolation           called once per sustained problem
+ * @param {(type: string) => boolean|void} onViolation   called once per sustained problem; return false if ignored
  * @returns {{ status: 'loading'|'ok'|'looking-away'|'face-not-visible'|'multiple-faces'|'unavailable' }}
  */
 export default function useFaceMonitor(videoRef, enabled, onViolation) {
@@ -135,8 +135,9 @@ export default function useFaceMonitor(videoRef, enabled, onViolation) {
             reported = false;
             setStatus(next || 'ok');
           } else if (problem && !reported && now - problemSince >= GRACE_MS[problem]) {
-            reported = true;
-            onViolationRef.current(problem);
+            // The caller returns false when it ignored the report (e.g. the camera is still
+            // waking up after the student returned) — keep watching and report again later.
+            reported = onViolationRef.current(problem) !== false;
           }
         }, DETECT_INTERVAL_MS);
       })

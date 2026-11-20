@@ -9,6 +9,15 @@ const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 // How many anti-cheat violations before the test is auto-submitted
 const MAX_WARNINGS = 3;
 
+// After the student comes back (visible + focused + fullscreen), ignore follow-on
+// signals for this long: the camera restarts and the face tracker sees black frames.
+const RETURN_GRACE_MS = 5000;
+
+// Leaving-the-test violations. When one action fires several of these at once, only the
+// first counts. A different one arriving this long after a plain fullscreen exit is a new action.
+const LEAVE_REASONS = new Set(['tab-switch', 'assistant-opened', 'focus-lost', 'fullscreen-exit']);
+const SEPARATE_ACTION_MS = 2000;
+
 // Fallback for questions created before per-question timing was added.
 const DEFAULT_QUESTION_TIME_LIMIT = 60;
 
@@ -92,6 +101,7 @@ export default function Quiz() {
   const [cameraError, setCameraError] = useState('');
   const [cameraReady, setCameraReady] = useState(false);
   const [started, setStarted] = useState(false); // show "Start" screen first (needed for fullscreen)
+  const [cameraEpoch, setCameraEpoch] = useState(0); // bumps when the camera stream is restarted
 
   // Per-question timer (in seconds remaining)
   const [timeLeft, setTimeLeft] = useState(DEFAULT_QUESTION_TIME_LIMIT);
@@ -109,6 +119,9 @@ export default function Quiz() {
   const lastViolationAtRef = useRef(0);
   const enteredFullscreenRef = useRef(false);
   const suppressBlurRef = useRef(false); // our own confirm() dialog also blurs the window
+  // "Away episode": from the moment the student leaves (home button, call, tab switch,
+  // overlay, fullscreen exit) until they're back + RETURN_GRACE_MS. One episode = one warning.
+  const awayRef = useRef({ away: false, counted: false, reason: null, countedAt: 0, graceUntil: 0 });
   const videoRef = useRef(null);
   const cameraStreamRef = useRef(null);
 
@@ -130,7 +143,24 @@ export default function Quiz() {
   useEffect(() => {
     if (!videoRef.current || !cameraStreamRef.current) return;
     videoRef.current.srcObject = cameraStreamRef.current;
-  }, [cameraReady, started]);
+  }, [cameraReady, started, cameraEpoch]);
+
+  // Phones stop the camera when the browser goes to the background (home button,
+  // incoming call). Turn it back on silently instead of counting it as a violation.
+  const restartCamera = useCallback(async () => {
+    cameraStreamRef.current?.getTracks().forEach((track) => track.stop());
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      cameraStreamRef.current = stream;
+      setCameraReady(true);
+      setCameraEpoch((n) => n + 1);
+      return true;
+    } catch {
+      cameraStreamRef.current = null;
+      setCameraReady(false);
+      return false;
+    }
+  }, []);
 
   // -------- Load questions --------
   useEffect(() => {
@@ -266,12 +296,30 @@ export default function Quiz() {
   }, [isTotalTime, started, finish]);
 
   // -------- Violation handler --------
-  const handleViolation = useCallback(async (reason) => {
-    if (isMock || finishedRef.current || !started) return;
+  // Returns true if the violation was counted, false if it was ignored.
+  const handleViolation = useCallback((reason) => {
+    if (isMock || finishedRef.current || !started) return false;
 
     // A single tab/fullscreen transition can emit more than one browser event.
     const now = Date.now();
-    if (now - lastViolationAtRef.current < 1000) return;
+    if (now - lastViolationAtRef.current < 1000) return false;
+
+    // While away (and just after coming back), everything that happens is part of the
+    // same incident: hidden page, fullscreen exit, camera stopping, black frames…
+    // Count only the first one.
+    // The first signal names the warning (Assistant, tab switch, or just fullscreen exit).
+    const a = awayRef.current;
+    if (a.away || now < a.graceUntil) {
+      // Exception: the student only left fullscreen (page still visible and focused) and
+      // later — as a separate action — opens an assistant or switches away. That's a new warning.
+      const separateAction = a.counted && a.reason === 'fullscreen-exit'
+        && LEAVE_REASONS.has(reason) && reason !== 'fullscreen-exit'
+        && now - a.countedAt > SEPARATE_ACTION_MS;
+      if (a.counted && !separateAction) return false;
+      a.counted = true;
+      a.reason = reason;
+      a.countedAt = now;
+    }
     lastViolationAtRef.current = now;
 
     warningsRef.current += 1;
@@ -280,19 +328,22 @@ export default function Quiz() {
     setLastViolation(reason);
     setShowWarning(true);
 
-    // Fire-and-forget: log it on the server so the teacher can see
-    let recordedCount = count;
-    try {
-      const { data } = await api.post('/students/quiz/violation', { type: reason });
-      recordedCount = Number(data?.violations) || count;
-      setWarnings(recordedCount);
-    } catch (e) { /* non-fatal */ }
+    // Log it on the server so the teacher can see
+    (async () => {
+      let recordedCount = count;
+      try {
+        const { data } = await api.post('/students/quiz/violation', { type: reason });
+        recordedCount = Number(data?.violations) || count;
+        setWarnings(recordedCount);
+      } catch (e) { /* non-fatal */ }
 
-    if (recordedCount >= MAX_WARNINGS) {
-      // Submit immediately — an alert() here would block the JS thread (and the
-      // finish request) until dismissed, and the student could close the tab first.
-      finish(true, true);
-    }
+      if (recordedCount >= MAX_WARNINGS) {
+        // Submit immediately — an alert() here would block the JS thread (and the
+        // finish request) until dismissed, and the student could close the tab first.
+        finish(true, true);
+      }
+    })();
+    return true;
   }, [isMock, started, finish]);
 
   // -------- Anti-cheat: camera track --------
@@ -301,13 +352,16 @@ export default function Quiz() {
     const track = cameraStreamRef.current.getVideoTracks()[0];
     if (!track) return;
 
-    const onCameraEnded = () => {
-      setCameraReady(false);
-      handleViolation('camera-disabled');
+    const onCameraEnded = async () => {
+      if (finishedRef.current) return;
+      // Backgrounded (home button / call): the camera is restarted when the student returns.
+      if (document.hidden || awayRef.current.away) return;
+      // Try to switch it back on; only a camera that stays off is a violation.
+      if (!(await restartCamera())) handleViolation('camera-disabled');
     };
     track.addEventListener('ended', onCameraEnded);
     return () => track.removeEventListener('ended', onCameraEnded);
-  }, [webcamRequired, started, cameraReady, handleViolation]);
+  }, [webcamRequired, started, cameraReady, cameraEpoch, handleViolation, restartCamera]);
 
   // -------- Anti-cheat: face / gaze tracking on the webcam --------
   const { status: faceStatus } = useFaceMonitor(
@@ -341,8 +395,37 @@ export default function Quiz() {
         handleViolation('fullscreen-exit');
       }
     };
+    // Start an away episode (if one isn't already open)
+    const markAway = () => {
+      const a = awayRef.current;
+      if (a.away) return;
+      a.away = true;
+      // Still inside the previous episode's grace window = same incident, keep its count
+      if (Date.now() >= a.graceUntil) a.counted = false;
+    };
+    // Close the episode once the student is fully back on the test
+    const checkBack = () => {
+      const a = awayRef.current;
+      if (!a.away || finishedRef.current) return;
+      if (document.hidden || !document.hasFocus()) return;
+      const canFullscreen = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+      if (enteredFullscreenRef.current && canFullscreen && !getFullscreenElement()) return;
+      a.away = false;
+      a.graceUntil = Date.now() + RETURN_GRACE_MS;
+      // Phones stop the camera in the background: turn it back on
+      if (webcamRequired) {
+        const track = cameraStreamRef.current?.getVideoTracks()[0];
+        if (!track || track.readyState === 'ended') {
+          restartCamera().then((ok) => {
+            if (!ok) setTimeout(() => handleViolation('camera-disabled'), RETURN_GRACE_MS + 100);
+          });
+        }
+      }
+    };
+
     const note = (signal) => {
       if (finishedRef.current) return;
+      markAway();
       if (!pending) {
         pending = { hidden: false, blurred: false, fullscreenExit: false };
         pending.timer = setTimeout(classify, CLASSIFY_DELAY_MS);
@@ -352,6 +435,7 @@ export default function Quiz() {
 
     const onVisibilityChange = () => {
       if (document.hidden) note('hidden');
+      else checkBack();
     };
 
     const onBlur = () => {
@@ -363,6 +447,7 @@ export default function Quiz() {
     const onFocus = () => {
       lost = false;
       setWindowFocused(true);
+      checkBack();
     };
 
     const onFullscreenChange = () => {
@@ -372,6 +457,7 @@ export default function Quiz() {
         note('fullscreenExit');
       } else if (getFullscreenElement()) {
         setOutOfFullscreen(false);
+        checkBack();
       }
     };
 
@@ -381,6 +467,7 @@ export default function Quiz() {
       const focused = document.hasFocus();
       if (!focused && !lost) onBlur();
       else if (focused && lost) onFocus();
+      else checkBack();
     }, 500);
 
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -398,7 +485,7 @@ export default function Quiz() {
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
     };
-  }, [isMock, started, handleViolation]);
+  }, [isMock, started, handleViolation, webcamRequired, restartCamera]);
 
   // -------- Anti-cheat: block right-click, copy, devtools shortcuts --------
   useEffect(() => {
@@ -580,6 +667,7 @@ export default function Quiz() {
             : []),
           ['🚫', 'Right-click, copy, text selection and developer tools are disabled.'],
           ['🤖', <>Don&apos;t open <strong>Google Assistant, Gemini, Circle to Search</strong> or any overlay — the question hides and it counts as a warning.</>],
+          ['📵', <>Turn on <strong>Do Not Disturb</strong> before starting so calls and notifications can&apos;t interrupt you. If a call comes in or you leave by mistake, it counts as <strong>only one</strong> warning — come back, tap <strong>Resume Fullscreen</strong> and carry on. Your answers are saved.</>],
           ['⚠️', <>On the <strong>{ordinal(MAX_WARNINGS)} warning</strong> your test is submitted automatically.</>]
         ];
 
@@ -686,8 +774,8 @@ export default function Quiz() {
           <div className="quiz-card" style={{ maxWidth: 420 }}>
             <h3 style={{ color: 'var(--danger)', marginBottom: 8 }}>You left fullscreen mode</h3>
             <p className="text-muted mb-2">
-              This is a recorded violation. You must return to fullscreen to keep answering questions.
-              The countdown keeps running while you're out.
+              This counts as one warning (only one, however long you were away). Return to fullscreen
+              to keep answering — your answers so far are saved. The countdown keeps running while you&apos;re out.
             </p>
             <button className="btn btn-primary btn-block" onClick={handleResumeFullscreen}>
               Resume Fullscreen
