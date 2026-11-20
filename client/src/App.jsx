@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import ProtectedRoute from './components/ProtectedRoute';
 
 // Public / login pages
@@ -35,82 +36,85 @@ export default function App() {
     document.body.classList.toggle('student-theme', !pathname.startsWith('/admin'));
   }, [pathname]);
   return (
-    <Routes>
-      {/* Public */}
-      <Route path="/" element={<StudentLogin />} />
-      <Route path="/admin" element={<TeacherLogin />} />
+    <>
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<StudentLogin />} />
+        <Route path="/admin" element={<TeacherLogin />} />
 
-      {/* Teacher */}
-      <Route
-        path="/admin/dashboard"
-        element={<ProtectedRoute role="teacher"><TeacherDashboard /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/new-test"
-        element={<ProtectedRoute role="teacher"><NewTest /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id"
-        element={<ProtectedRoute role="teacher"><TestDetails /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id/add-question"
-        element={<ProtectedRoute role="teacher"><AddQuestion /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id/credentials"
-        element={<ProtectedRoute role="teacher"><StudentCredentials /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/data"
-        element={<ProtectedRoute role="teacher"><AddData /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id/students/:testStudentId/answers"
-        element={<ProtectedRoute role="teacher"><StudentAnswers /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/profile"
-        element={<ProtectedRoute role="teacher"><Profile /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/student-data"
-        element={<ProtectedRoute role="teacher"><StudentData /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/view-data"
-        element={<ProtectedRoute role="teacher"><ViewData /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/statistics"
-        element={<ProtectedRoute role="teacher"><Statistics /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id/stats"
-        element={<ProtectedRoute role="teacher"><TestStats /></ProtectedRoute>}
-      />
-      <Route
-        path="/admin/tests/:id/question-stats"
-        element={<ProtectedRoute role="teacher"><TestQuestionStats /></ProtectedRoute>}
-      />
+        {/* Teacher */}
+        <Route
+          path="/admin/dashboard"
+          element={<ProtectedRoute role="teacher"><TeacherDashboard /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/new-test"
+          element={<ProtectedRoute role="teacher"><NewTest /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id"
+          element={<ProtectedRoute role="teacher"><TestDetails /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id/add-question"
+          element={<ProtectedRoute role="teacher"><AddQuestion /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id/credentials"
+          element={<ProtectedRoute role="teacher"><StudentCredentials /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/data"
+          element={<ProtectedRoute role="teacher"><AddData /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id/students/:testStudentId/answers"
+          element={<ProtectedRoute role="teacher"><StudentAnswers /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/profile"
+          element={<ProtectedRoute role="teacher"><Profile /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/student-data"
+          element={<ProtectedRoute role="teacher"><StudentData /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/view-data"
+          element={<ProtectedRoute role="teacher"><ViewData /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/statistics"
+          element={<ProtectedRoute role="teacher"><Statistics /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id/stats"
+          element={<ProtectedRoute role="teacher"><TestStats /></ProtectedRoute>}
+        />
+        <Route
+          path="/admin/tests/:id/question-stats"
+          element={<ProtectedRoute role="teacher"><TestQuestionStats /></ProtectedRoute>}
+        />
 
-      {/* Student */}
-      <Route
-        path="/student/dashboard"
-        element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>}
-      />
-      <Route
-        path="/student/quiz"
-        element={<ProtectedRoute role="student"><Quiz /></ProtectedRoute>}
-      />
-      <Route path="/student/finished" element={<TestFinished />} />
-      <Route
-        path="/student/mock-results"
-        element={<ProtectedRoute role="student"><MockResults /></ProtectedRoute>}
-      />
+        {/* Student */}
+        <Route
+          path="/student/dashboard"
+          element={<ProtectedRoute role="student"><StudentDashboard /></ProtectedRoute>}
+        />
+        <Route
+          path="/student/quiz"
+          element={<ProtectedRoute role="student"><Quiz /></ProtectedRoute>}
+        />
+        <Route path="/student/finished" element={<TestFinished />} />
+        <Route
+          path="/student/mock-results"
+          element={<ProtectedRoute role="student"><MockResults /></ProtectedRoute>}
+        />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <Analytics />
+    </>
   );
 }
