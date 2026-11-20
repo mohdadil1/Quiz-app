@@ -11,18 +11,41 @@ export default function StudentDashboard() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await api.get('/students/dashboard');
-        setInfo(data);
-      } catch (e) {
-        setErr('Could not load your dashboard');
-      } finally {
-        setLoading(false);
-      }
-    })();
+  const [checking, setChecking] = useState(false);
+
+  // Fetches the test status without reloading the page (a reload would drop fullscreen).
+  const loadDashboard = React.useCallback(async ({ quiet = false } = {}) => {
+    if (!quiet) setChecking(true);
+    try {
+      const { data } = await api.get('/students/dashboard');
+      setInfo(data);
+      setErr('');
+    } catch (e) {
+      if (!quiet) setErr('Could not load your dashboard');
+    } finally {
+      setLoading(false);
+      if (!quiet) setChecking(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  // While waiting for the teacher, keep checking so "Start Test" appears on its own.
+  const waiting = !!info && !info.submitted && !info.running;
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const id = setInterval(() => loadDashboard({ quiet: true }), 5000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadDashboard({ quiet: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [waiting, loadDashboard]);
 
   const handleLogout = () => {
     logout();
@@ -156,7 +179,15 @@ export default function StudentDashboard() {
                 <p className="text-muted">
                   Your test <strong>{info.testName}</strong> hasn't started yet.
                   Wait until your teacher marks it as RUNNING.
+                  This page updates automatically — no need to refresh.
                 </p>
+                <button
+                  className="btn btn-secondary btn-sm mt-4"
+                  onClick={() => loadDashboard()}
+                  disabled={checking}
+                >
+                  {checking ? 'Checking…' : 'Check again'}
+                </button>
               </div>
             )}
           </>
