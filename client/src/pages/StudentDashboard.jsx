@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
+import { formatWhen } from '../components/TestScheduleFields';
 import { useAuth } from '../context/AuthContext';
 const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
@@ -33,7 +34,7 @@ export default function StudentDashboard() {
   }, [loadDashboard]);
 
   // While waiting for the teacher, keep checking so "Start Test" appears on its own.
-  const waiting = !!info && !info.submitted && !info.running;
+  const waiting = !!info && !info.submitted && !info.running && !info.closed;
   useEffect(() => {
     if (!waiting) return undefined;
     const id = setInterval(() => loadDashboard({ quiet: true }), 5000);
@@ -168,18 +169,35 @@ export default function StudentDashboard() {
                   </ul>
                 )}
 
-                <button className="btn btn-primary btn-block btn-lg" onClick={handleStart}>
+                {info.endAt && (
+                  <p className="schedule-note">
+                    This test closes at <strong>{formatWhen(info.endAt)}</strong>. Answers sent after that won&apos;t count.
+                  </p>
+                )}
+
+                <button className="btn btn-primary btn-block btn-lg mt-2" onClick={handleStart}>
                   Start Test →
                 </button>
+              </div>
+            ) : info.closed ? (
+              <div className="student-status-box student-status-waiting">
+                <div className="status-icon">🔒</div>
+                <h3>This test has closed</h3>
+                <p className="text-muted">
+                  <strong>{info.testName}</strong> is no longer open
+                  {info.endAt ? ` — it closed at ${formatWhen(info.endAt)}` : ''}. Contact your teacher if you think this is a mistake.
+                </p>
               </div>
             ) : (
               <div className="student-status-box student-status-waiting">
                 <div className="status-icon">⏳</div>
-                <h3>Waiting for teacher</h3>
+                <h3>{info.startAt ? 'Test opens soon' : 'Waiting for teacher'}</h3>
                 <p className="text-muted">
                   Your test <strong>{info.testName}</strong> hasn't started yet.
-                  Wait until your teacher marks it as RUNNING.
-                  This page updates automatically — no need to refresh.
+                  {info.startAt && new Date(info.startAt) > new Date()
+                    ? <> It opens at <strong>{formatWhen(info.startAt)}</strong>.</>
+                    : ' Wait until your teacher marks it as RUNNING.'}
+                  {' '}This page updates automatically — no need to refresh.
                 </p>
                 <button
                   className="btn btn-secondary btn-sm mt-4"

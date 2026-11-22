@@ -5,6 +5,7 @@ const TestStudent = require('../models/TestStudent');
 const Question = require('../models/Question');
 const StudentAnswer = require('../models/StudentAnswer');
 const { sign } = require('../middleware/auth');
+const { typeOf, gradeAnswer, optionLetters, describeAnswer, describeCorrect } = require('../utils/questionTypes');
 
 /**
  * POST /api/students/login  { rollno, password }
@@ -38,6 +39,7 @@ exports.login = async (req, res) => {
   }).populate('test');
 
   if (!ts) return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
+  await ts.test.applySchedule();
 
   // A student who already submitted may log back in, but only to see "test completed" —
   // the quiz endpoints refuse submitted students, and their test entry is left untouched.
@@ -130,6 +132,7 @@ exports.dashboard = async (req, res) => {
   const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
 
+  await ts.test.applySchedule();
   const running = ts.test.status === 'RUNNING';
   // For MOCK tests, show submitted if completedOnce (even if currently submitted=false for retakes)
   const submitted = ts.test.mode === 'MOCK' ? ts.completedOnce : ts.submitted;
@@ -144,7 +147,11 @@ exports.dashboard = async (req, res) => {
     isMock: ts.test.mode === 'MOCK',
     timingMode: ts.test.timingMode || 'PER_QUESTION',
     totalTimeMinutes: ts.test.totalTimeMinutes || 30,
-    webcamProctoring: ts.test.webcamProctoring !== false
+    webcamProctoring: ts.test.webcamProctoring !== false,
+    // Schedule, so the student sees when the test opens / closes
+    startAt: ts.test.startAt,
+    endAt: ts.test.endAt,
+    closed: ts.test.status === 'COMPLETED'
   });
 };
 
@@ -156,20 +163,22 @@ exports.dashboard = async (req, res) => {
  * identical — the client doesn't see correctAns either way.
  */
 exports.getQuestions = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test', 'shuffle');
+  const ts = await TestStudent.findById(req.user.testStudentId).populate('test', 'shuffle endAt autoEnded status');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
+  if (hasClosed(ts.test)) return res.status(410).json({ message: 'This test has closed' });
 
   // Set started to true when fetching questions
   ts.started = true;
   await ts.save();
 
   const questions = await Question.find({ test: ts.test._id })
-    .select('title optionA optionB optionC optionD score timeLimit')
+    .select('type title optionA optionB optionC optionD score timeLimit')
     .sort({ createdAt: 1 });
 
   res.json(orderForStudent(ts, questions).map(({ question, optionOrder }) => ({
     ...question.toObject(),
+    type: typeOf(question),
     // Display order of the options; the client still sends the original letter
     optionOrder,
     timeLimit: Number.isFinite(Number(question.timeLimit)) && Number(question.timeLimit) >= 0.25
@@ -182,10 +191,17 @@ exports.getQuestions = async (req, res) => {
 // test entry), so a reconnect or the results page shows the same order, but neighbours
 // see different ones. `ts.test` must be populated.
 function orderForStudent(ts, questions) {
-  const letters = ['a', 'b', 'c', 'd'];
-  if (ts.test.shuffle === false) return questions.map((question) => ({ question, optionOrder: letters }));
+  if (ts.test.shuffle === false) {
+    return questions.map((question) => ({ question, optionOrder: optionLetters(question) }));
+  }
   const random = seededRandom(String(ts._id));
-  return shuffled(questions, random).map((question) => ({ question, optionOrder: shuffled(letters, random) }));
+  return shuffled(questions, random).map((question) => ({
+    question,
+    // True/False keeps True first; numeric questions have no options
+    optionOrder: ['MCQ', 'MULTI'].includes(typeOf(question))
+      ? shuffled(optionLetters(question), random)
+      : optionLetters(question)
+  }));
 }
 
 // Small deterministic PRNG (mulberry32) seeded from a string
@@ -213,7 +229,20 @@ function shuffled(items, random) {
 const TOTAL_TIME_GRACE_MS = 15 * 1000; // allow for network delay on the last answer
 function remainingMs(ts, test) {
   if (test.mode === 'MOCK' || test.timingMode !== 'TOTAL' || !ts.startedAt) return null;
-  return ts.startedAt.getTime() + (test.totalTimeMinutes || 30) * 60 * 1000 - Date.now();
+  let deadline = ts.startedAt.getTime() + (test.totalTimeMinutes || 30) * 60 * 1000;
+  // A scheduled close time cuts the countdown short
+  // (not when the teacher has reopened it by hand after it closed)
+  if (test.endAt && !(test.autoEnded && test.status === 'RUNNING')) {
+    deadline = Math.min(deadline, new Date(test.endAt).getTime());
+  }
+  return deadline - Date.now();
+}
+
+// True once a scheduled test's end time (plus the network grace) has passed — unless the
+// teacher set it back to RUNNING by hand after it closed
+function hasClosed(test, graceMs = 0) {
+  if (!test.endAt || Date.now() <= new Date(test.endAt).getTime() + graceMs) return false;
+  return !(test.autoEnded && test.status === 'RUNNING');
 }
 
 /**
@@ -226,6 +255,7 @@ exports.startQuiz = async (req, res) => {
   const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
+  if (hasClosed(ts.test)) return res.status(410).json({ message: 'This test has closed' });
 
   if (!ts.startedAt) {
     ts.startedAt = new Date();
@@ -240,15 +270,13 @@ exports.startQuiz = async (req, res) => {
 
 /**
  * POST /api/quiz/answer  { questionId, selectedOption }
- * Checks the answer, updates this question's correct/wrong counters
- * and the student's running score.
+ * selectedOption is 'b' (single choice / true-false), 'ac' or ['a','c'] (multiple correct)
+ * or the typed number (numeric). Checks the answer, updates this question's
+ * correct/wrong counters and the student's running score.
  */
 exports.submitAnswer = async (req, res) => {
-  const { questionId, selectedOption } = req.body;
-  const picked = String(selectedOption || '').toLowerCase();
-  if (!['a', 'b', 'c', 'd'].includes(picked)) {
-    return res.status(400).json({ message: 'selectedOption must be A, B, C or D' });
-  }
+  const { questionId } = req.body;
+  const selectedOption = req.body.selectedOption ?? req.body.answer;
 
   const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
   if (!ts) return res.status(404).json({ message: 'Not found' });
@@ -256,6 +284,9 @@ exports.submitAnswer = async (req, res) => {
   const left = remainingMs(ts, ts.test);
   if (left !== null && left < -TOTAL_TIME_GRACE_MS) {
     return res.status(410).json({ message: 'Time is up' });
+  }
+  if (hasClosed(ts.test, TOTAL_TIME_GRACE_MS)) {
+    return res.status(410).json({ message: 'This test has closed' });
   }
 
   const q = await Question.findById(questionId);
@@ -269,7 +300,10 @@ exports.submitAnswer = async (req, res) => {
     return res.json({ correct: existingAnswer.isCorrect, alreadyAnswered: true });
   }
 
-  const correct = picked === q.correctAns;
+  const graded = gradeAnswer(q, selectedOption);
+  if (graded.error) return res.status(400).json({ message: graded.error });
+  const correct = graded.correct;
+  const picked = graded.value;
 
   try {
     await StudentAnswer.create({
@@ -368,7 +402,7 @@ exports.getResults = async (req, res) => {
 
   // Get all questions for this test with correct answers
   const questions = await Question.find({ test: ts.test._id })
-    .select('title optionA optionB optionC optionD correctAns score')
+    .select('type title optionA optionB optionC optionD correctAns correctNumber tolerance score')
     .sort({ createdAt: 1 });
 
   // Get all student answers
@@ -397,18 +431,25 @@ exports.getResults = async (req, res) => {
 
   // Combine questions with student answers
   // Same question and option order the student saw during the test
-  const results = orderForStudent(ts, questions).map(({ question: q, optionOrder }) => ({
-    _id: q._id,
-    optionOrder,
-    title: q.title,
-    optionA: q.optionA,
-    optionB: q.optionB,
-    optionC: q.optionC,
-    optionD: q.optionD,
-    correctAns: q.correctAns,
-    score: q.score,
-    studentAnswer: answerMap[String(q._id)] || { selected: null, isCorrect: false }
-  }));
+  const results = orderForStudent(ts, questions).map(({ question: q, optionOrder }) => {
+    const studentAnswer = answerMap[String(q._id)] || { selected: null, isCorrect: false };
+    return {
+      _id: q._id,
+      type: typeOf(q),
+      optionOrder,
+      title: q.title,
+      optionA: q.optionA,
+      optionB: q.optionB,
+      optionC: q.optionC,
+      optionD: q.optionD,
+      correctAns: q.correctAns,
+      correctNumber: q.correctNumber,
+      tolerance: q.tolerance,
+      correctText: describeCorrect(q),
+      score: q.score,
+      studentAnswer: { ...studentAnswer, text: describeAnswer(q, studentAnswer.selected) }
+    };
+  });
 
   res.json({
     testName: ts.test.name,

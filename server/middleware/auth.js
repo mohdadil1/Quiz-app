@@ -35,6 +35,8 @@ function requireAuth(roles) {
         const TestStudent = require('../models/TestStudent');
         const ts = await TestStudent.findById(decoded.testStudentId).populate('test');
         if (!ts) return res.status(401).json({ message: 'Session expired' });
+        // Open / close the test if its scheduled time has passed
+        if (ts.test) await ts.test.applySchedule();
         // Submitted students may still view their dashboard ("test completed"); quiz routes refuse them
         if (ts.test?.mode !== 'MOCK' && !ts.active && !ts.submitted) {
           return res.status(401).json({ message: 'Session expired' });

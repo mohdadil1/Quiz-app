@@ -90,6 +90,11 @@ export default function Quiz() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
   const [selected, setSelected] = useState(null); // visual feedback only
+  // Answers that need a Submit press: ticked options ('ac') for multiple-correct, typed text for numeric
+  const [picks, setPicks] = useState('');
+  const [numberText, setNumberText] = useState('');
+  // The current unsent answer, so a per-question timeout sends it instead of skipping
+  const draftRef = useRef(null);
 
   // Anti-cheat state
   const [warnings, setWarnings] = useState(0);
@@ -213,7 +218,7 @@ export default function Quiz() {
   }, [logout, navigate, isMock, stopCamera]);
 
   // -------- Answer / skip a question --------
-  // `option` is 'a'|'b'|'c'|'d' for an answer, or null for a timeout-skip.
+  // `option` is the answer ('b', 'ac' for multiple-correct, '9.8' for numeric), or null for a skip.
   const submitAnswerOrSkip = useCallback(async (option) => {
     if (submittingRef.current || finishedRef.current) return;
     const currentIdx = idxRef.current;
@@ -222,6 +227,7 @@ export default function Quiz() {
 
     submittingRef.current = true;
     setSubmitting(true);
+    setErr('');
     setSelected(option);
 
     try {
@@ -242,6 +248,10 @@ export default function Quiz() {
         idxRef.current = next;
         setIdx(next);
         setSelected(null);
+        setPicks('');
+        setNumberText('');
+        draftRef.current = null;
+        setErr('');
         submittingRef.current = false;
         setSubmitting(false);
       }
@@ -272,7 +282,8 @@ export default function Quiz() {
       setTimeLeft(remaining);
       if (remaining === 0) {
         clearInterval(intervalId);
-        submitAnswerOrSkip(null);
+        // Time's up: send whatever was ticked / typed so far, otherwise skip
+        submitAnswerOrSkip(draftRef.current);
       }
     }, 250);
 
@@ -719,6 +730,8 @@ export default function Quiz() {
 
   // -------- Active quiz --------
   const q = questions[idx];
+  const questionType = q?.type || 'MCQ';
+  const numberValid = isNumberText(numberText);
   const questionTimeLimit = getQuestionTimeLimit(q);
   const remaining = MAX_WARNINGS - warnings;
   const progressPct = ((idx) / questions.length) * 100;
@@ -863,21 +876,80 @@ export default function Quiz() {
               <span className="question-number">{idx + 1}</span>
               <div className="question-title" aria-hidden={isMock ? undefined : 'true'}><RichText value={q.title} /></div>
             </div>
-            <div className="quiz-options">
-              {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => (
-                <button
-                  key={key}
-                  className={`option-btn ${selected === key ? 'is-selected' : ''}`}
-                  onClick={() => submitAnswerOrSkip(key)}
+            {err && <div className="alert alert-error" role="alert">{err}</div>}
+            {questionType === 'MULTI' && (
+              <p className="quiz-type-hint">Select all correct options, then press Submit answer.</p>
+            )}
+            {questionType === 'NUMERIC' ? (
+              <form
+                className="quiz-numeric"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (numberValid) submitAnswerOrSkip(numberText.trim());
+                }}
+              >
+                <label htmlFor="numeric-answer">Your answer</label>
+                <input
+                  id="numeric-answer"
+                  className="form-control"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="Type a number"
+                  value={numberText}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setNumberText(text);
+                    draftRef.current = isNumberText(text) ? text.trim() : null;
+                  }}
                   disabled={submitting || outOfFullscreen}
-                  aria-label={isMock ? undefined : `Option ${'ABCD'[pos]}`}
-                >
-                  {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
-                  <span className="option-letter">{'ABCD'[pos]}</span>
-                  <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>{q[`option${key.toUpperCase()}`]}</span>
+                  autoFocus
+                />
+                {numberText.trim() !== '' && !numberValid && (
+                  <div className="quiz-input-error">Enter a number, e.g. 42, -3.5 or 0.25</div>
+                )}
+                <button type="submit" className="btn btn-primary quiz-submit-answer" disabled={!numberValid || submitting || outOfFullscreen}>
+                  Submit answer
                 </button>
-              ))}
-            </div>
+              </form>
+            ) : (
+              <div className="quiz-options" role={questionType === 'MULTI' ? 'group' : undefined}>
+                {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => {
+                  const ticked = questionType === 'MULTI' ? picks.includes(key) : selected === key;
+                  return (
+                    <button
+                      key={key}
+                      className={`option-btn ${questionType === 'MULTI' ? 'option-btn--multi' : ''} ${ticked ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        if (questionType !== 'MULTI') {
+                          submitAnswerOrSkip(key);
+                          return;
+                        }
+                        const next = picks.includes(key) ? picks.replace(key, '') : [...picks, key].sort().join('');
+                        setPicks(next);
+                        draftRef.current = next || null;
+                      }}
+                      disabled={submitting || outOfFullscreen}
+                      aria-pressed={questionType === 'MULTI' ? ticked : undefined}
+                      aria-label={isMock ? undefined : `Option ${'ABCD'[pos]}`}
+                    >
+                      {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
+                      <span className="option-letter">{questionType === 'MULTI' && ticked ? '✓' : 'ABCD'[pos]}</span>
+                      <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>{q[`option${key.toUpperCase()}`]}</span>
+                    </button>
+                  );
+                })}
+                {questionType === 'MULTI' && (
+                  <button
+                    className="btn btn-primary quiz-submit-answer"
+                    onClick={() => submitAnswerOrSkip(picks)}
+                    disabled={!picks || submitting || outOfFullscreen}
+                  >
+                    Submit answer
+                  </button>
+                )}
+              </div>
+            )}
             {isTotalTime && (
               <div className="text-right mt-2">
                 <button
@@ -908,4 +980,9 @@ function formatTime(secs) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Same rule as the server: optional sign, digits with an optional decimal point, optional exponent
+function isNumberText(text) {
+  return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(String(text).trim().replace(/,/g, ''));
 }

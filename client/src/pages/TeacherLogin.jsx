@@ -102,7 +102,9 @@ export default function TeacherLogin() {
       navigate('/admin/dashboard');
     } catch (e) {
       const fallback = { login: 'Login failed', signup: 'Could not create account', forgot: 'Could not reset password' }[mode];
-      setErr(mode === 'login' ? fallback : (e?.response?.data?.message || fallback));
+      // Rate-limited: say so, even on the login form (which otherwise hides the exact reason)
+      const tooMany = e?.response?.status === 429;
+      setErr(mode === 'login' && !tooMany ? fallback : (e?.response?.data?.message || fallback));
     } finally {
       setLoading(false);
     }

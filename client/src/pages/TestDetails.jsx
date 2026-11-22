@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import TestTimingFields from '../components/TestTimingFields';
+import TestScheduleFields, { formatWhen } from '../components/TestScheduleFields';
+import QuestionFields from '../components/QuestionFields';
+import { TYPE_SHORT, typeOf, correctLabel, questionPayload, validateQuestion } from '../components/questionTypes';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
-import RichTextEditor, { RichText } from '../components/RichTextEditor';
+import { RichText } from '../components/RichTextEditor';
 
 function getTimeLimit(question) {
   const value = Number(question?.timeLimit);
@@ -49,9 +52,12 @@ export default function TestDetails() {
         webcamProctoring: test.webcamProctoring !== false,
         timingMode: test.timingMode || 'PER_QUESTION',
         totalTimeMinutes: test.totalTimeMinutes ?? 30,
-        shuffle: test.shuffle !== false
+        shuffle: test.shuffle !== false,
+        startAt: test.startAt || null,
+        endAt: test.endAt || null
       });
       setMsg({ type: 'success', text: 'General settings updated successfully' });
+      load(); // the status may have changed (e.g. the closing time was moved later)
     } catch (e) {
       setMsg({ type: 'error', text: e?.response?.data?.message || 'Error updating settings' });
     }
@@ -103,26 +109,24 @@ export default function TestDetails() {
   };
 
   const editQuestion = (question) => {
-    setEditingQuestion({ ...question, timeLimit: getTimeLimit(question) });
+    setEditingQuestion({
+      ...question,
+      type: typeOf(question),
+      correctNumber: question.correctNumber ?? '',
+      tolerance: question.tolerance ?? 0,
+      timeLimit: getTimeLimit(question)
+    });
   };
 
   const saveEditedQuestion = async () => {
     if (!editingQuestion) return;
-    if (!editingQuestion.title.replace(/<[^>]*>/g, '').trim()) {
-      setMsg({ type: 'error', text: 'Question title is required' });
+    const problem = validateQuestion(editingQuestion);
+    if (problem) {
+      setMsg({ type: 'error', text: problem });
       return;
     }
     try {
-      await api.put(`/questions/${editingQuestion._id}`, {
-        title: editingQuestion.title,
-        optionA: editingQuestion.optionA,
-        optionB: editingQuestion.optionB,
-        optionC: editingQuestion.optionC,
-        optionD: editingQuestion.optionD,
-        correctAns: editingQuestion.correctAns,
-        score: editingQuestion.score,
-        timeLimit: Number(editingQuestion.timeLimit)
-      });
+      await api.put(`/questions/${editingQuestion._id}`, questionPayload(editingQuestion));
       setEditingQuestion(null);
       setMsg({ type: 'success', text: 'Question updated successfully' });
       await load();
@@ -192,6 +196,10 @@ export default function TestDetails() {
               <span>Enable webcam proctoring for this test</span>
             </label>
             <TestTimingFields value={test} onChange={(changes) => setTest({ ...test, ...changes })} />
+            <TestScheduleFields value={test} onChange={(changes) => setTest({ ...test, ...changes })} />
+            {test.status === 'COMPLETED' && test.endAt && (
+              <p className="text-muted form-hint">Closed automatically at {formatWhen(test.endAt)}. Move the closing time later to reopen it.</p>
+            )}
               <div className="form-group">
                 <label>Status</label>
                 <select className="form-control" value={test.status} onChange={(e) => setTest({ ...test, status: e.target.value })}>
@@ -262,6 +270,7 @@ export default function TestDetails() {
                 <thead>
                   <tr>
                     <th>#</th>
+                    <th>Type</th>
                     <th>Title</th>
                     <th>A</th>
                     <th>B</th>
@@ -277,12 +286,13 @@ export default function TestDetails() {
                   {test.questions.map((q, i) => (
                     <tr key={q._id}>
                       <td>{i + 1}</td>
+                      <td><span className="badge type-badge">{TYPE_SHORT[typeOf(q)]}</span></td>
                       <td><RichText value={q.title} /></td>
                       <td>{q.optionA}</td>
                       <td>{q.optionB}</td>
                       <td>{q.optionC}</td>
                       <td>{q.optionD}</td>
-                      <td>{q.correctAns?.toUpperCase()}</td>
+                      <td>{correctLabel(q)}</td>
                       <td>{q.score}</td>
                       <td>{getTimeLimit(q)} min</td>
                       <td>
@@ -310,8 +320,15 @@ export default function TestDetails() {
             <div className="card-header"><h3>Import Spreadsheet</h3></div>
             <div className="card-body">
               <p className="text-muted mb-2">
-                    <strong>Columns (no header row):</strong> Question, Option A, Option B, Option C, Option D, Correct Option, Score, Time Limit (minutes).
+                <strong>Columns (no header row):</strong> Question, Option A, Option B, Option C, Option D, Correct, Score,
+                Time Limit (minutes), Tolerance (numeric questions only).
               </p>
+              <ul className="text-muted mb-2 upload-help">
+                <li><strong>Single choice:</strong> Correct = <code>B</code></li>
+                <li><strong>Multiple correct:</strong> Correct = <code>A,C</code></li>
+                <li><strong>True / False:</strong> leave the options empty, Correct = <code>True</code> or <code>False</code></li>
+                <li><strong>Numeric:</strong> leave the options empty, Correct = the number, e.g. <code>9.81</code>, and an optional tolerance in the last column</li>
+              </ul>
               <p className="text-muted mb-2"><strong>Accepted formats:</strong> .xls, .xlsx, .ods</p>
               <input type="file" ref={fileInputRef} accept=".xls,.xlsx,.ods" className="form-control mb-2" />
               <div className="flex flex-gap">
@@ -335,92 +352,10 @@ export default function TestDetails() {
             <div className="card-header"><h3>Edit Question</h3></div>
             <div className="card-body">
               <form onSubmit={(e) => { e.preventDefault(); saveEditedQuestion(); }}>
-                <div className="form-group">
-                  <label>Question</label>
-                  <RichTextEditor
-                    value={editingQuestion.title}
-                    onChange={(title) => setEditingQuestion({ ...editingQuestion, title })}
-                  />
-                </div>
-                <div className="row row-2">
-                  <div className="form-group">
-                    <label>Option A</label>
-                    <input
-                      className="form-control"
-                      value={editingQuestion.optionA}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, optionA: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Option B</label>
-                    <input
-                      className="form-control"
-                      value={editingQuestion.optionB}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, optionB: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="row row-2">
-                  <div className="form-group">
-                    <label>Option C</label>
-                    <input
-                      className="form-control"
-                      value={editingQuestion.optionC}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, optionC: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Option D</label>
-                    <input
-                      className="form-control"
-                      value={editingQuestion.optionD}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, optionD: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="row row-2">
-                  <div className="form-group">
-                    <label>Correct Answer</label>
-                    <select
-                      className="form-control"
-                      value={editingQuestion.correctAns}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, correctAns: e.target.value })}
-                      required
-                    >
-                      <option value="a">A</option>
-                      <option value="b">B</option>
-                      <option value="c">C</option>
-                      <option value="d">D</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Score</label>
-                    <input
-                      type="number"
-                      min="0"
-                      className="form-control"
-                      value={editingQuestion.score}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, score: Number(e.target.value) })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Time limit (minutes)</label>
-                    <input
-                      type="number"
-                      min="0.25"
-                      step="0.25"
-                      className="form-control"
-                      value={editingQuestion.timeLimit}
-                      onChange={(e) => setEditingQuestion({ ...editingQuestion, timeLimit: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
+                <QuestionFields
+                  value={editingQuestion}
+                  onChange={(changes) => setEditingQuestion((q) => ({ ...q, ...changes }))}
+                />
                 <div className="flex flex-gap">
                   <button type="button" className="btn btn-secondary" onClick={() => setEditingQuestion(null)}>Cancel</button>
                   <button type="button" className="btn btn-primary" onClick={saveEditedQuestion}>Save Changes</button>

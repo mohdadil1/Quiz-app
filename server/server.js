@@ -7,6 +7,9 @@ const connectDB = require('./config/db');
 
 const app = express();
 
+// Vercel / Render sit behind one proxy: trust it so req.ip is the student's real IP (used by the rate limits)
+app.set('trust proxy', 1);
+
 // Allow multiple origins for development and production
 const allowedOrigins = [
   'http://localhost:5173',

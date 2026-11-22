@@ -1605,3 +1605,98 @@ body.student-theme {
 }
 .student-theme .form-control:focus { box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.18); }
 .finish-card h1 { color: var(--text); }
+
+/* =====================================================
+   QUESTION TYPES (multiple correct, true/false, numeric)
+   ===================================================== */
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+.choice-row .form-check { margin: 4px 0; }
+.form-check input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+}
+.form-hint {
+  font-size: 0.85rem;
+  margin: 4px 0 0;
+}
+.type-badge {
+  background: var(--primary-light, #eef2ff);
+  color: var(--primary);
+  white-space: nowrap;
+}
+.upload-help {
+  padding-left: 18px;
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+.upload-help code {
+  background: #f1f3f7;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* Student side */
+.quiz-type-hint {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.quiz-options .option-btn--multi .option-letter {
+  border-radius: 8px; /* square chip = tick box, round chip = pick one */
+}
+.quiz-submit-answer {
+  align-self: flex-end;
+  margin-top: 6px;
+}
+.quiz-numeric {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+.quiz-numeric label {
+  font-weight: 600;
+}
+.quiz-numeric .form-control {
+  font-size: 1.2rem;
+  padding: 12px 14px;
+}
+.quiz-numeric .quiz-submit-answer {
+  align-self: flex-start;
+}
+.quiz-input-error {
+  color: var(--danger, #c0392b);
+  font-size: 0.85rem;
+}
+/* Typing must still work inside the copy-protected card (iOS ignores input under user-select: none) */
+.quiz-card--protected input {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Student dashboard schedule note */
+.schedule-note {
+  margin: 12px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius, 8px);
+  background: #f4f6fb;
+  font-size: 0.92rem;
+}
+/* Side by side when there's room, stacked in narrow cards (datetime inputs are wide) */
+.schedule-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  column-gap: 16px;
+}
+.choice-row .form-check {
+  display: flex;
+  gap: 8px;
+}

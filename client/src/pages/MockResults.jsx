@@ -84,7 +84,6 @@ export default function MockResults() {
           {results.results.map((q, idx) => {
             const studentAnswer = q.studentAnswer?.selected;
             const isCorrect = q.studentAnswer?.isCorrect;
-            const optionLabels = { a: 'A', b: 'B', c: 'C', d: 'D' };
             // Options in the order the student saw them; labels follow that order
             const options = (q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => ({
               key,
@@ -133,23 +132,38 @@ export default function MockResults() {
                       Q{idx + 1}: <RichText value={q.title} />
                     </p>
                     <p style={{ margin: 0, fontSize: 12, color: '#999' }}>
-                      {isCorrect ? 'Correct!' : 'Incorrect'}
+                      {isCorrect ? 'Correct!' : studentAnswer ? 'Incorrect' : 'Not answered'}
+                      {q.type === 'MULTI' && ' · select all that apply'}
                     </p>
                   </div>
                 </div>
 
+                {q.type === 'NUMERIC' && (
+                  <div style={{ marginLeft: 40, display: 'grid', gap: 8 }}>
+                    <div style={{ border: `2px solid ${isCorrect ? '#4caf50' : '#f44336'}`, background: isCorrect ? '#e8f5e9' : '#ffebee', borderRadius: 6, padding: 10 }}>
+                      Your answer: <strong>{studentAnswer ?? '—'}</strong>
+                    </div>
+                    {!isCorrect && (
+                      <div style={{ border: '2px solid #4caf50', background: '#e8f5e9', borderRadius: 6, padding: 10 }}>
+                        Correct answer: <strong>{q.correctText}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Options */}
                 <div style={{ marginLeft: 40 }}>
                   {options.map(opt => {
-                    const isStudentChoice = studentAnswer === opt.key;
-                    const isCorrectChoice = opt.key === q.correctAns;
+                    // Answers and keys are letter strings: 'b', or 'ac' for multiple-correct
+                    const isStudentChoice = (studentAnswer || '').includes(opt.key);
+                    const isCorrectChoice = (q.correctAns || '').includes(opt.key);
                     let bg = '#fff';
                     let borderColor = '#ddd';
 
                     if (isCorrectChoice) {
                       bg = '#e8f5e9';
                       borderColor = '#4caf50';
-                    } else if (isStudentChoice && !isCorrect) {
+                    } else if (isStudentChoice) {
                       bg = '#ffebee';
                       borderColor = '#f44336';
                     }
@@ -178,9 +192,11 @@ export default function MockResults() {
                         </div>
                         <div style={{ flex: 1 }}>{opt.text}</div>
                         {isCorrectChoice && (
-                          <div style={{ color: '#4caf50', fontWeight: 'bold' }}>✓ Correct</div>
+                          <div style={{ color: '#4caf50', fontWeight: 'bold' }}>
+                            ✓ Correct{isStudentChoice ? ' · your answer' : ''}
+                          </div>
                         )}
-                        {isStudentChoice && !isCorrect && (
+                        {isStudentChoice && !isCorrectChoice && (
                           <div style={{ color: '#f44336', fontWeight: 'bold' }}>✗ Your answer</div>
                         )}
                       </div>

@@ -5,6 +5,8 @@ const Question = require('../models/Question');
 const StudentRecord = require('../models/StudentRecord');
 const TestStudent = require('../models/TestStudent');
 const StudentAnswer = require('../models/StudentAnswer');
+const xlsx = require('xlsx');
+const { typeOf, TYPE_LABELS, describeAnswer, describeCorrect } = require('../utils/questionTypes');
 
 const USN_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 
@@ -22,7 +24,51 @@ function applyTestOptions(test, body) {
     test.totalTimeMinutes = Math.round(minutes);
   }
   if (shuffle !== undefined) test.shuffle = shuffle === true;
+  return applySchedule(test, body);
+}
+
+// startAt / endAt: ISO date strings, or null / '' to clear. Changing a time re-arms it.
+function applySchedule(test, body) {
+  const parse = (value) => {
+    if (value === null || value === '') return { date: null };
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? { error: true } : { date };
+  };
+  const same = (a, b) => (a ? a.getTime() : null) === (b ? b.getTime() : null);
+
+  if (body.startAt !== undefined) {
+    const { date, error } = parse(body.startAt);
+    if (error) return 'Invalid start time';
+    if (!same(date, test.startAt)) {
+      test.startAt = date;
+      test.autoStarted = false;
+    }
+  }
+  if (body.endAt !== undefined) {
+    const { date, error } = parse(body.endAt);
+    if (error) return 'Invalid end time';
+    if (!same(date, test.endAt)) {
+      // Pushing the end time later on a test the schedule closed reopens it
+      if (test.autoEnded && test.status === 'COMPLETED' && date && date > new Date()) test.status = 'RUNNING';
+      test.endAt = date;
+      test.autoEnded = false;
+    }
+  }
+  if (test.startAt && test.endAt && test.endAt <= test.startAt) return 'End time must be after the start time';
   return null;
+}
+
+// Bring the schedule up to date for this teacher's tests whose start/end time has passed
+async function applyDueSchedules(teacherId) {
+  const now = new Date();
+  const due = await Test.find({
+    teacher: teacherId,
+    $or: [
+      { startAt: { $ne: null, $lte: now }, autoStarted: { $ne: true } },
+      { endAt: { $ne: null, $lte: now }, autoEnded: { $ne: true } }
+    ]
+  });
+  await Test.applyScheduleAll(due, now);
 }
 
 // Delete guest (classless) student records, keeping any still enrolled in another test
@@ -45,6 +91,7 @@ function randomPassword(length = 8) {
 // GET /api/tests?status=pending|running|completed|active
 // "active" = PENDING + RUNNING (what the teacher dashboard shows)
 exports.listTests = async (req, res) => {
+  await applyDueSchedules(req.user.id);
   const filter = { teacher: req.user.id };
   const { status } = req.query;
   if (status) {
@@ -66,6 +113,7 @@ exports.getTest = async (req, res) => {
   const test = await Test.findById(req.params.id).populate('class', 'name');
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+  await test.applySchedule();
 
   const questions = await Question.find({ test: test._id }).sort({ createdAt: 1 });
   res.json({ ...test.toObject(), questions });
@@ -355,10 +403,13 @@ exports.studentAnswers = async (req, res) => {
     if (answer?.isCorrect) score += q.score || 0;
     return {
       id: q._id,
+      type: typeOf(q),
       title: q.title,
       options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
       correctAns: q.correctAns,
+      correctText: describeCorrect(q),
       selectedOption: answer?.selectedOption || null,
+      answerText: answer ? describeAnswer(q, answer.selectedOption) : '',
       isCorrect: answer ? answer.isCorrect : null,
       score: q.score
     };
@@ -394,4 +445,170 @@ exports.questionStats = async (req, res) => {
       wrongCount: q.wrongCount
     }))
   });
+};
+
+const VIOLATION_LABELS = {
+  'tab-switch': 'Tab switching',
+  'assistant-opened': 'Screen assistant opened',
+  'focus-lost': 'Switched to another window or app',
+  'second-device-login': 'Tried to log in from a second device',
+  'fullscreen-exit': 'Exited fullscreen',
+  'camera-disabled': 'Camera disabled',
+  'looking-away': 'Looked away from the screen',
+  'face-not-visible': 'Face not visible',
+  'multiple-faces': 'More than one face'
+};
+
+// Rich-text question titles → plain text for spreadsheet cells
+function plainText(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li)>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Short answer for a grid cell: 'A', 'A, C', 'True', '9.8'
+function shortAnswer(question, value) {
+  if (value == null || value === '') return '';
+  const type = typeOf(question);
+  if (type === 'NUMERIC') return String(value);
+  if (type === 'TRUE_FALSE') return value === 'a' ? 'True' : 'False';
+  return String(value).toUpperCase().split('').join(', ');
+}
+
+function statusOf(row) {
+  if (row.autoSubmitted) return 'Auto-submitted';
+  if (row.submitted) return 'Submitted';
+  if (row.started || row.startedAt) return 'Started, not submitted';
+  return 'Not started';
+}
+
+// GET /api/tests/:id/export — the results as an .xlsx workbook:
+//   Results   one row per student (score, %, right/wrong/skipped, status, violations)
+//   Answers   every student's answer to every question, with the key on the first row
+//   Questions per-question type, correct answer and how many got it right
+exports.exportResults = async (req, res) => {
+  const test = await Test.findById(req.params.id).populate('class', 'name');
+  if (!test) return res.status(404).json({ message: 'Not found' });
+  if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+
+  const [questions, rows] = await Promise.all([
+    Question.find({ test: test._id }).sort({ createdAt: 1 }),
+    TestStudent.find({ test: test._id }).populate('student')
+  ]);
+  const answers = await StudentAnswer.find({ testStudent: { $in: rows.map((r) => r._id) } });
+  const answerOf = new Map(answers.map((a) => [`${a.testStudent}|${a.question}`, a]));
+  const maxScore = questions.reduce((sum, q) => sum + (q.score || 0), 0);
+
+  // Per-student totals, worked out from the stored answers (as the scoreboard does)
+  const students = rows.map((row) => {
+    let score = 0;
+    let right = 0;
+    let wrong = 0;
+    for (const q of questions) {
+      const a = answerOf.get(`${row._id}|${q._id}`);
+      if (!a) continue;
+      if (a.isCorrect) { right += 1; score += q.score || 0; } else wrong += 1;
+    }
+    return { row, score, right, wrong, skipped: questions.length - right - wrong };
+  });
+  // Highest score first; equal scores share a rank; ties listed by USN
+  students.sort((a, b) => b.score - a.score || USN_COLLATOR.compare(a.row.student?.rollno ?? '', b.row.student?.rollno ?? ''));
+  let rank = 0;
+  students.forEach((s, i) => {
+    if (i === 0 || s.score !== students[i - 1].score) rank = i + 1;
+    s.rank = rank;
+  });
+
+  const results = students.map((s) => ({
+    Rank: s.rank,
+    USN: s.row.student?.rollno || '',
+    Name: s.row.student?.name || '',
+    Score: s.score,
+    'Max marks': maxScore,
+    'Percentage': maxScore ? Math.round((s.score / maxScore) * 1000) / 10 : 0,
+    Right: s.right,
+    Wrong: s.wrong,
+    'Not answered': s.skipped,
+    Status: statusOf(s.row),
+    Violations: s.row.violations || 0,
+    'Violation details': (s.row.violationTypes || []).map((t) => VIOLATION_LABELS[t] || t).join('; ')
+  }));
+
+  // Answers grid: Q1…Qn columns, a ✓ / ✗ after each answer
+  const qHeaders = questions.map((_, i) => `Q${i + 1}`);
+  const keyRow = { USN: 'Correct answer', Name: '' };
+  questions.forEach((q, i) => {
+    keyRow[qHeaders[i]] = typeOf(q) === 'NUMERIC' ? describeCorrect(q) : shortAnswer(q, q.correctAns);
+  });
+  const answerRows = [keyRow, ...students.map((s) => {
+    const line = { USN: s.row.student?.rollno || '', Name: s.row.student?.name || '' };
+    questions.forEach((q, i) => {
+      const a = answerOf.get(`${s.row._id}|${q._id}`);
+      line[qHeaders[i]] = a ? `${shortAnswer(q, a.selectedOption)} ${a.isCorrect ? '✓' : '✗'}` : '—';
+    });
+    return line;
+  })];
+
+  const attempted = students.length || 1;
+  const questionRows = questions.map((q, i) => {
+    let right = 0;
+    let wrong = 0;
+    for (const s of students) {
+      const a = answerOf.get(`${s.row._id}|${q._id}`);
+      if (a) { if (a.isCorrect) right += 1; else wrong += 1; }
+    }
+    return {
+      '#': i + 1,
+      Question: plainText(q.title),
+      Type: TYPE_LABELS[typeOf(q)],
+      'Correct answer': describeCorrect(q),
+      Marks: q.score,
+      Right: right,
+      Wrong: wrong,
+      'Not answered': students.length - right - wrong,
+      '% right': Math.round((right / attempted) * 1000) / 10
+    };
+  });
+
+  const wb = xlsx.utils.book_new();
+  const info = [
+    ['Test', test.name],
+    ['Subject', test.subject],
+    ['Class', test.class?.name || ''],
+    ['Date', test.date ? test.date.toISOString().slice(0, 10) : ''],
+    ['Students', students.length],
+    ['Submitted', students.filter((s) => s.row.submitted).length],
+    ['Average score', students.length ? Math.round((students.reduce((t, s) => t + s.score, 0) / students.length) * 100) / 100 : 0],
+    ['Max marks', maxScore]
+  ];
+  const resultsSheet = xlsx.utils.aoa_to_sheet(info);
+  // One blank row between the summary and the table
+  xlsx.utils.sheet_add_json(resultsSheet, results, { origin: { r: info.length + 1, c: 0 } });
+  resultsSheet['!cols'] = [6, 14, 24, 7, 10, 11, 6, 6, 13, 22, 10, 50].map((wch) => ({ wch }));
+  xlsx.utils.book_append_sheet(wb, resultsSheet, 'Results');
+
+  const answersSheet = xlsx.utils.json_to_sheet(answerRows, { header: ['USN', 'Name', ...qHeaders] });
+  answersSheet['!cols'] = [{ wch: 16 }, { wch: 24 }, ...qHeaders.map(() => ({ wch: 10 }))];
+  xlsx.utils.book_append_sheet(wb, answersSheet, 'Answers');
+
+  const questionsSheet = xlsx.utils.json_to_sheet(questionRows);
+  questionsSheet['!cols'] = [4, 60, 16, 30, 6, 6, 6, 13, 8].map((wch) => ({ wch }));
+  xlsx.utils.book_append_sheet(wb, questionsSheet, 'Questions');
+
+  const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  const name = `${String(test.name).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Test'} results.xlsx`;
+  const asciiName = name.replace(/[^\w .-]/g, '_');
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  // filename* keeps non-English test names intact in browsers that support it
+  res.setHeader('Content-Disposition', `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(name)}`);
+  res.send(buffer);
 };

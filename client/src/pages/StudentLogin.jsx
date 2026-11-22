@@ -92,7 +92,9 @@ export default function StudentLogin() {
       navigate('/student/dashboard');
     } catch (e) {
       leaveFullscreen();
-      if (e?.response?.data?.message === 'TEST_OPEN_ON_ANOTHER_DEVICE') {
+      if (e?.response?.status === 429) {
+        setErr(e.response.data?.message || 'Too many login attempts. Please wait a few minutes and try again.');
+      } else if (e?.response?.data?.message === 'TEST_OPEN_ON_ANOTHER_DEVICE') {
         setErr('You are already logged in to this test on another device. Continue on that device, or ask your teacher to unlock it. This attempt has been recorded.');
       } else {
         setErr('Wrong credentials entered');

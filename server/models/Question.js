@@ -9,16 +9,19 @@ const questionSchema = new mongoose.Schema(
   {
     test: { type: mongoose.Schema.Types.ObjectId, ref: 'Test', required: true },
     title: { type: String, required: true },
-    optionA: { type: String, required: true },
-    optionB: { type: String, required: true },
-    optionC: { type: String, required: true },
-    optionD: { type: String, required: true },
-    correctAns: {
-      type: String,
-      required: true,
-      enum: ['a', 'b', 'c', 'd'],
-      lowercase: true
-    },
+    // MCQ | MULTI | TRUE_FALSE | NUMERIC — see utils/questionTypes.js. Old questions have no
+    // type stored and are treated as MCQ.
+    type: { type: String, enum: ['MCQ', 'MULTI', 'TRUE_FALSE', 'NUMERIC'], default: 'MCQ' },
+    // Options are only used by MCQ / MULTI (all four) and TRUE_FALSE (A = True, B = False)
+    optionA: { type: String, default: '' },
+    optionB: { type: String, default: '' },
+    optionC: { type: String, default: '' },
+    optionD: { type: String, default: '' },
+    // MCQ / TRUE_FALSE: one letter ('b'). MULTI: sorted letters ('ac'). NUMERIC: empty.
+    correctAns: { type: String, default: '', lowercase: true, match: /^[a-d]{0,4}$/ },
+    // NUMERIC only: the right answer and how far off an answer may be and still count
+    correctNumber: { type: Number, default: null },
+    tolerance: { type: Number, default: 0, min: 0 },
     score: { type: Number, required: true, default: 1 },
     timeLimit: { type: Number, required: true, default: 1, min: 0.25 },
     correctCount: { type: Number, default: 0 },

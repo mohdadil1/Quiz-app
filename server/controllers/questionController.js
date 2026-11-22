@@ -2,12 +2,7 @@ const xlsx = require('xlsx');
 const Question = require('../models/Question');
 const Test = require('../models/Test');
 
-// Small helper — accepts 'A'/'a'/'B'/'b' etc. and returns lowercase letter
-function normalizeCorrect(val) {
-  if (val == null) return null;
-  const s = String(val).trim().toLowerCase();
-  return ['a', 'b', 'c', 'd'].includes(s) ? s : null;
-}
+const { buildQuestionFields, normalizeLetters } = require('../utils/questionTypes');
 
 async function assertOwnsTest(testId, userId) {
   const test = await Test.findById(testId);
@@ -16,73 +11,56 @@ async function assertOwnsTest(testId, userId) {
   return { test };
 }
 
-// POST /api/questions  { testId, title, optionA..D, correctAns, score }
-exports.createQuestion = async (req, res) => {
-  const { testId, title, optionA, optionB, optionC, optionD, correctAns, score, timeLimit } = req.body;
-  if (!testId || !title || !optionA || !optionB || !optionC || !optionD || !correctAns || score == null) {
-    return res.status(400).json({ message: 'All fields are required' });
+// Title, marks and time limit are shared by every question type; returns { fields } or { error }
+function buildCommonFields(body) {
+  const { title, score, timeLimit } = body;
+  if (!title || !String(title).replace(/<[^>]*>/g, '').trim()) return { error: 'Question title is required' };
+  const parsedTimeLimit = Number(timeLimit ?? 1);
+  if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
+    return { error: 'timeLimit must be at least 0.25 minutes' };
   }
+  const parsedScore = Number(score);
+  if (score == null || score === '' || !Number.isFinite(parsedScore) || parsedScore <= 0) {
+    return { error: 'score must be greater than 0' };
+  }
+  return { fields: { title: String(title), score: parsedScore, timeLimit: parsedTimeLimit } };
+}
+
+function buildAllFields(body) {
+  const common = buildCommonFields(body);
+  if (common.error) return common;
+  const typed = buildQuestionFields(body);
+  if (typed.error) return typed;
+  return { fields: { ...common.fields, ...typed.fields } };
+}
+
+// POST /api/questions  { testId, type, title, optionA..D, correctAns, correctNumber, tolerance, score, timeLimit }
+exports.createQuestion = async (req, res) => {
+  const { testId } = req.body;
+  if (!testId) return res.status(400).json({ message: 'testId is required' });
   const { test, error } = await assertOwnsTest(testId, req.user.id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const ans = normalizeCorrect(correctAns);
-  if (!ans) return res.status(400).json({ message: 'correctAns must be A, B, C or D' });
-  const parsedTimeLimit = Number(timeLimit ?? 1);
-  if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
-    return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
-  }
-  const parsedScore = Number(score);
-  if (!Number.isFinite(parsedScore) || parsedScore <= 0) {
-    return res.status(400).json({ message: 'score must be greater than 0' });
-  }
+  const built = buildAllFields(req.body);
+  if (built.error) return res.status(400).json({ message: built.error });
 
-  const q = await Question.create({
-    test: test._id,
-    title,
-    optionA,
-    optionB,
-    optionC,
-    optionD,
-    correctAns: ans,
-    score: parsedScore,
-    timeLimit: parsedTimeLimit
-  });
+  const q = await Question.create({ test: test._id, ...built.fields });
   res.status(201).json(q);
 };
 
-// PUT /api/questions/:id  { title, optionA..D, correctAns, score }
+// PUT /api/questions/:id  — same body as create (without testId)
 exports.updateQuestion = async (req, res) => {
-  const { title, optionA, optionB, optionC, optionD, correctAns, score, timeLimit } = req.body;
-  if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || score == null) {
-    return res.status(400).json({ message: 'All fields are required' });
-  }
-
   const q = await Question.findById(req.params.id);
   if (!q) return res.status(404).json({ message: 'Question not found' });
   const { error } = await assertOwnsTest(q.test, req.user.id);
   if (error) return res.status(error.status).json({ message: error.message });
 
-  const ans = normalizeCorrect(correctAns);
-  if (!ans) return res.status(400).json({ message: 'correctAns must be A, B, C or D' });
-  const parsedTimeLimit = Number(timeLimit ?? 1);
-  if (!Number.isFinite(parsedTimeLimit) || parsedTimeLimit < 0.25) {
-    return res.status(400).json({ message: 'timeLimit must be at least 0.25 minutes' });
-  }
-  const parsedScore = Number(score);
-  if (!Number.isFinite(parsedScore) || parsedScore <= 0) {
-    return res.status(400).json({ message: 'score must be greater than 0' });
-  }
+  // Older clients don't send a type: keep the question's current one
+  const built = buildAllFields({ type: q.type, ...req.body });
+  if (built.error) return res.status(400).json({ message: built.error });
 
-  q.title = title;
-  q.optionA = optionA;
-  q.optionB = optionB;
-  q.optionC = optionC;
-  q.optionD = optionD;
-  q.correctAns = ans;
-  q.score = parsedScore;
-  q.timeLimit = parsedTimeLimit;
+  Object.assign(q, built.fields);
   await q.save();
-
   res.json(q);
 };
 
@@ -96,8 +74,23 @@ exports.deleteQuestion = async (req, res) => {
   res.json({ ok: true });
 };
 
+// Work out a spreadsheet row's question type from what's filled in:
+//   correct = True/False            → TRUE_FALSE (options may be left blank)
+//   all four options blank          → NUMERIC (correct is the number, column 9 the tolerance)
+//   correct = several letters (A,C) → MULTI
+//   otherwise                       → MCQ
+function detectRowType(options, correctRaw) {
+  const correct = String(correctRaw ?? '').trim().toLowerCase();
+  if (['true', 'false', 't', 'f'].includes(correct)) return 'TRUE_FALSE';
+  if (options.every((o) => String(o ?? '').trim() === '')) return 'NUMERIC';
+  const letters = normalizeLetters(correct);
+  if (letters && letters.length > 1) return 'MULTI';
+  return 'MCQ';
+}
+
 // POST /api/questions/upload?testId=... — multipart with "file" containing .xlsx/.xls/.ods
-// Expected columns (no header row): title | A | B | C | D | correct | score | timeLimit
+// Expected columns (no header row):
+//   title | A | B | C | D | correct | score | timeLimit | tolerance (numeric questions only)
 exports.uploadQuestions = async (req, res) => {
   const { testId } = req.query;
   if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
@@ -115,35 +108,34 @@ exports.uploadQuestions = async (req, res) => {
     return res.status(400).json({ message: 'Could not parse spreadsheet: ' + e.message });
   }
 
-  const created = [];
+  const docs = [];
   const errors = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
-    const [title, optionA, optionB, optionC, optionD, correctRaw, scoreRaw, timeLimitRaw] = row;
-    if (!title && !optionA && !optionB) continue; // skip empty rows
+    const [title, optionA, optionB, optionC, optionD, correctRaw, scoreRaw, timeLimitRaw, toleranceRaw] = row;
+    if ([title, optionA, optionB, correctRaw].every((v) => String(v ?? '').trim() === '')) continue; // empty row
 
-    const correctAns = normalizeCorrect(correctRaw);
-    const score = Number(scoreRaw);
-    const timeLimit = timeLimitRaw === '' || timeLimitRaw == null ? 1 : Number(timeLimitRaw);
-    if (!title || !optionA || !optionB || !optionC || !optionD || !correctAns || !Number.isFinite(score) || score <= 0 || !Number.isFinite(timeLimit) || timeLimit < 0.25) {
-      errors.push({ row: i + 1, reason: 'Invalid or missing fields' });
+    const built = buildAllFields({
+      type: detectRowType([optionA, optionB, optionC, optionD], correctRaw),
+      title: String(title ?? ''),
+      optionA,
+      optionB,
+      optionC,
+      optionD,
+      correctAns: correctRaw,
+      tolerance: toleranceRaw,
+      score: scoreRaw,
+      timeLimit: timeLimitRaw === '' || timeLimitRaw == null ? 1 : timeLimitRaw
+    });
+    if (built.error) {
+      errors.push({ row: i + 1, reason: built.error });
       continue;
     }
-
-    const q = await Question.create({
-      test: test._id,
-      title: String(title),
-      optionA: String(optionA),
-      optionB: String(optionB),
-      optionC: String(optionC),
-      optionD: String(optionD),
-      correctAns,
-      score,
-      timeLimit
-    });
-    created.push(q._id);
+    docs.push({ test: test._id, ...built.fields });
   }
 
-  res.json({ created: created.length, errors });
+  // One at a time so each gets a later createdAt — questions are listed in createdAt order
+  for (const doc of docs) await Question.create(doc);
+  res.json({ created: docs.length, errors });
 };
