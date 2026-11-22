@@ -30,7 +30,7 @@ function getQuestionTimeLimit(question) {
 // Banner text for the most recent violation: what was detected + what to do
 const VIOLATION_MESSAGES = {
   'tab-switch': 'Tab switching detected. Stay on the test tab and do not minimise the browser.',
-  'assistant-opened': 'Google Assistant / screen assistant detected (Assistant, Gemini or Circle to Search). Do not open assistants or overlays during the test.',
+  'assistant-opened': 'You left the test screen (an assistant like Google Assistant, Gemini or Circle to Search, the notification panel, or another overlay). Stay on the test screen.',
   'focus-lost': 'Switching to another window or app detected. Keep the test window active.',
   'fullscreen-exit': 'Fullscreen exit detected. Stay in fullscreen.',
   'camera-disabled': 'Camera turned off. Keep your camera on.',
@@ -39,7 +39,8 @@ const VIOLATION_MESSAGES = {
   'multiple-faces': 'Multiple faces detected. Only you may be in front of the camera.'
 };
 
-// Phones/tablets: a visible page losing focus there means an assistant or overlay opened
+// Phones/tablets: a visible page losing focus there means something covered it (an assistant,
+// the notification panel, a call banner…) — or a tab switch the browser hasn't reported yet
 function isMobileDevice() {
   if (navigator.userAgentData?.mobile) return true;
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
@@ -401,21 +402,52 @@ export default function Quiz() {
     if (isMock || !started) return;
 
     const CLASSIFY_DELAY_MS = 700;
-    let pending = null; // { hidden, blurred, fullscreenExit, timer }
+    // Phones report "page hidden" late when switching tabs (first the tab switcher animates
+    // or fullscreen drops, with the page still visible). Before calling a visible-but-unfocused
+    // page an overlay, give the browser this much longer to say the tab was hidden.
+    const MOBILE_HIDDEN_WAIT_MS = 1800;
+    const mobile = isMobileDevice();
+    let pending = null; // { hidden, blurred, fullscreenExit, waited, timer }
     let lost = false;   // focus currently lost (one violation per episode)
 
     const classify = () => {
       const p = pending;
-      pending = null;
-      if (!p || finishedRef.current) return;
+      if (!p || finishedRef.current) {
+        pending = null;
+        return;
+      }
       if (p.hidden || document.hidden) {
+        pending = null;
         handleViolation('tab-switch');
-      } else if (p.blurred && !document.hasFocus()) {
-        // Page still visible but something else has focus
-        handleViolation(isMobileDevice() ? 'assistant-opened' : 'focus-lost');
-      } else if (p.fullscreenExit && !getFullscreenElement() && enteredFullscreenRef.current) {
+        return;
+      }
+      if (p.blurred && (p.waited || !document.hasFocus())) {
+        // Visible but unfocused for 0.7 s. On a phone, wait a bit more for a late "hidden".
+        if (mobile && !p.waited) {
+          p.waited = true;
+          p.timer = setTimeout(classify, MOBILE_HIDDEN_WAIT_MS);
+          return;
+        }
+        pending = null;
+        handleViolation(mobile ? 'assistant-opened' : 'focus-lost');
+        return;
+      }
+      pending = null;
+      if (p.fullscreenExit && !getFullscreenElement() && enteredFullscreenRef.current) {
         handleViolation('fullscreen-exit');
       }
+    };
+
+    // The page was hidden after this episode's warning was already recorded as "left the
+    // screen": it was really a tab switch. Fix the label (banner + teacher's record) without
+    // counting another warning.
+    const relabelAsTabSwitch = () => {
+      const a = awayRef.current;
+      if (!a.away || !a.counted || !['assistant-opened', 'focus-lost'].includes(a.reason)) return;
+      const from = a.reason;
+      a.reason = 'tab-switch';
+      setLastViolation('tab-switch');
+      api.post('/students/quiz/violation', { type: 'tab-switch', relabelFrom: from }).catch(() => {});
     };
     // Start an away episode (if one isn't already open)
     const markAway = () => {
@@ -453,11 +485,20 @@ export default function Quiz() {
         pending.timer = setTimeout(classify, CLASSIFY_DELAY_MS);
       }
       pending[signal] = true;
+      // Waiting on a phone and the tab has now gone hidden: decide right away
+      if (signal === 'hidden' && pending.waited) {
+        clearTimeout(pending.timer);
+        classify();
+      }
     };
 
     const onVisibilityChange = () => {
-      if (document.hidden) note('hidden');
-      else checkBack();
+      if (document.hidden) {
+        relabelAsTabSwitch();
+        note('hidden');
+      } else {
+        checkBack();
+      }
     };
 
     const onBlur = () => {
@@ -500,6 +541,7 @@ export default function Quiz() {
     if (!document.hasFocus()) onBlur();
     return () => {
       if (pending) clearTimeout(pending.timer);
+      pending = null;
       clearInterval(pollId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
@@ -688,7 +730,7 @@ export default function Quiz() {
             ? [['📷', <>Keep your camera on, your face visible, and <strong>look at the screen</strong>.</>]]
             : []),
           ['🚫', 'Right-click, copy, text selection and developer tools are disabled.'],
-          ['🤖', <>Don&apos;t open <strong>Google Assistant, Gemini, Circle to Search</strong> or any overlay — the question hides and it counts as a warning.</>],
+          ['🤖', <>Don&apos;t switch tabs or open <strong>Google Assistant, Gemini, Circle to Search</strong>, the notification panel or any overlay. The question hides and it counts as a warning.</>],
           ['📵', <>Turn on <strong>Do Not Disturb</strong> before starting so calls and notifications can&apos;t interrupt you. If a call comes in or you leave by mistake, it counts as <strong>only one</strong> warning — come back, tap <strong>Resume Fullscreen</strong> and carry on. Your answers are saved.</>],
           ['⚠️', <>On the <strong>{ordinal(MAX_WARNINGS)} warning</strong> your test is submitted automatically.</>]
         ];

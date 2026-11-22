@@ -462,7 +462,7 @@ exports.questionStats = async (req, res) => {
 
 const VIOLATION_LABELS = {
   'tab-switch': 'Tab switching',
-  'assistant-opened': 'Screen assistant opened',
+  'assistant-opened': 'Left the test screen (assistant, notification panel or overlay)',
   'focus-lost': 'Switched to another window or app',
   'second-device-login': 'Tried to log in from a second device',
   'fullscreen-exit': 'Exited fullscreen',

@@ -369,18 +369,41 @@ exports.finish = async (req, res) => {
  * fullscreen exits, etc). Returns the new count so the client can decide
  * whether to force-submit.
  */
+const VIOLATION_TYPES = new Set([
+  'tab-switch', 'assistant-opened', 'focus-lost', 'fullscreen-exit', 'second-device-login',
+  'camera-disabled', 'looking-away', 'face-not-visible', 'multiple-faces'
+]);
+// A warning first recorded as "left the screen" can turn out to be a tab switch once the
+// browser reports the page hidden (phones report that late). Only these corrections are allowed.
+const RELABEL_FROM = new Set(['assistant-opened', 'focus-lost']);
+
 exports.logViolation = async (req, res) => {
-  const { type } = req.body;
+  const type = VIOLATION_TYPES.has(req.body.type) ? req.body.type : 'unknown';
   const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
-  if (ts.submitted) return res.json({ violations: ts.violations, submitted: true });
   if (ts.test.mode === 'MOCK') {
     return res.json({ violations: 0, submitted: false });
   }
 
+  // { type: 'tab-switch', relabelFrom: 'assistant-opened' } — fix the label of the most
+  // recent warning without counting a new one (works after auto-submit too)
+  if (req.body.relabelFrom !== undefined) {
+    const from = req.body.relabelFrom;
+    const last = ts.violationTypes.length - 1;
+    if (type === 'tab-switch' && RELABEL_FROM.has(from) && last >= 0 && ts.violationTypes[last] === from) {
+      await TestStudent.updateOne(
+        { _id: ts._id, [`violationTypes.${last}`]: from },
+        { $set: { [`violationTypes.${last}`]: type } }
+      );
+    }
+    return res.json({ violations: ts.violations || 0, submitted: ts.submitted, relabelled: true });
+  }
+
+  if (ts.submitted) return res.json({ violations: ts.violations, submitted: true });
+
   const updated = await TestStudent.findOneAndUpdate(
     { _id: ts._id, submitted: false },
-    { $inc: { violations: 1 }, $push: { violationTypes: type || 'unknown' } },
+    { $inc: { violations: 1 }, $push: { violationTypes: type } },
     { new: true }
   );
 
