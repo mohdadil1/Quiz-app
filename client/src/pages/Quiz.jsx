@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/client';
+import api, { imageUrl } from '../api/client';
+import Picture from '../components/Picture';
 import { useAuth } from '../context/AuthContext';
 import { RichText } from '../components/RichTextEditor';
 import useFaceMonitor from '../components/useFaceMonitor';
@@ -265,6 +266,16 @@ export default function Quiz() {
       setSubmitting(false);
     }
   }, [questions, finish]);
+
+  // -------- Fetch the next question's pictures early so they show instantly --------
+  useEffect(() => {
+    const next = questions[idx + 1];
+    if (!next) return;
+    [next.image, ...Object.values(next.optionImages || {})].filter(Boolean).forEach((key) => {
+      const img = new Image();
+      img.src = imageUrl(key);
+    });
+  }, [idx, questions]);
 
   // -------- Per-question countdown --------
   useEffect(() => {
@@ -876,6 +887,11 @@ export default function Quiz() {
               <span className="question-number">{idx + 1}</span>
               <div className="question-title" aria-hidden={isMock ? undefined : 'true'}><RichText value={q.title} /></div>
             </div>
+            {q.image && (
+              <div className="question-picture">
+                <Picture imageKey={q.image} zoomable />
+              </div>
+            )}
             {err && <div className="alert alert-error" role="alert">{err}</div>}
             {questionType === 'MULTI' && (
               <p className="quiz-type-hint">Select all correct options, then press Submit answer.</p>
@@ -935,7 +951,10 @@ export default function Quiz() {
                     >
                       {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
                       <span className="option-letter">{questionType === 'MULTI' && ticked ? '✓' : 'ABCD'[pos]}</span>
-                      <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>{q[`option${key.toUpperCase()}`]}</span>
+                      <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>
+                        {q.optionImages?.[key] && <Picture imageKey={q.optionImages[key]} className="option-picture" alt={`Option ${'ABCD'[pos]}`} />}
+                        {q[`option${key.toUpperCase()}`]}
+                      </span>
                     </button>
                   );
                 })}

@@ -40,4 +40,7 @@ api.interceptors.response.use(
   }
 );
 
+// Public URL of a question / option picture (served by GET /api/images/:key)
+export const imageUrl = (key) => (key ? `${api.defaults.baseURL}/images/${key}` : '');
+
 export default api;

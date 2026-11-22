@@ -7,6 +7,7 @@ import { TYPE_SHORT, typeOf, correctLabel, questionPayload, validateQuestion } f
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 import { RichText } from '../components/RichTextEditor';
+import Picture from '../components/Picture';
 
 function getTimeLimit(question) {
   const value = Number(question?.timeLimit);
@@ -113,6 +114,8 @@ export default function TestDetails() {
       ...question,
       type: typeOf(question),
       correctNumber: question.correctNumber ?? '',
+      image: question.image || '',
+      optionImages: { a: '', b: '', c: '', d: '', ...(question.optionImages || {}) },
       tolerance: question.tolerance ?? 0,
       timeLimit: getTimeLimit(question)
     });
@@ -287,11 +290,16 @@ export default function TestDetails() {
                     <tr key={q._id}>
                       <td>{i + 1}</td>
                       <td><span className="badge type-badge">{TYPE_SHORT[typeOf(q)]}</span></td>
-                      <td><RichText value={q.title} /></td>
-                      <td>{q.optionA}</td>
-                      <td>{q.optionB}</td>
-                      <td>{q.optionC}</td>
-                      <td>{q.optionD}</td>
+                      <td>
+                        <RichText value={q.title} />
+                        {q.image && <Picture imageKey={q.image} className="picture-thumb" zoomable />}
+                      </td>
+                      {['a', 'b', 'c', 'd'].map((l) => (
+                        <td key={l}>
+                          {q.optionImages?.[l] && <Picture imageKey={q.optionImages[l]} className="picture-thumb picture-thumb--sm" zoomable />}
+                          {q[`option${l.toUpperCase()}`]}
+                        </td>
+                      ))}
                       <td>{correctLabel(q)}</td>
                       <td>{q.score}</td>
                       <td>{getTimeLimit(q)} min</td>

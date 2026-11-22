@@ -32,18 +32,20 @@ export const emptyQuestion = {
   correctAns: 'a',
   correctNumber: '',
   tolerance: 0,
+  image: '',
+  optionImages: { a: '', b: '', c: '', d: '' },
   score: 1,
   timeLimit: 1
 };
 
 // Check the form before sending; returns an error message or ''
 export function validateQuestion(q) {
-  if (!String(q.title || '').replace(/<[^>]*>/g, '').trim()) return 'Question title is required';
+  // A picture can stand in for the question text ("What does this circuit show?" is still nice to have)
+  if (!String(q.title || '').replace(/<[^>]*>/g, '').trim() && !q.image) return 'Type the question or add a picture';
   const type = typeOf(q);
   if (type === 'MCQ' || type === 'MULTI') {
-    if (!['optionA', 'optionB', 'optionC', 'optionD'].every((k) => String(q[k] ?? '').trim())) {
-      return 'All four options are required';
-    }
+    const filled = ['a', 'b', 'c', 'd'].every((l) => String(q[`option${l.toUpperCase()}`] ?? '').trim() || q.optionImages?.[l]);
+    if (!filled) return 'Each option needs text or a picture';
     if (!q.correctAns) return type === 'MULTI' ? 'Tick at least one correct option' : 'Choose the correct option';
   }
   if (type === 'NUMERIC') {
@@ -67,6 +69,13 @@ export function questionPayload(q) {
     correctAns: q.correctAns,
     correctNumber: q.correctNumber,
     tolerance: q.tolerance === '' ? 0 : q.tolerance,
+    image: q.image || '',
+    optionImages: {
+      a: q.optionImages?.a || '',
+      b: q.optionImages?.b || '',
+      c: q.optionImages?.c || '',
+      d: q.optionImages?.d || ''
+    },
     score: Number(q.score),
     timeLimit: Number(q.timeLimit)
   };

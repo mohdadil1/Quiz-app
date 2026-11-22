@@ -173,7 +173,7 @@ exports.getQuestions = async (req, res) => {
   await ts.save();
 
   const questions = await Question.find({ test: ts.test._id })
-    .select('type title optionA optionB optionC optionD score timeLimit')
+    .select('type title optionA optionB optionC optionD image optionImages score timeLimit')
     .sort({ createdAt: 1 });
 
   res.json(orderForStudent(ts, questions).map(({ question, optionOrder }) => ({
@@ -402,7 +402,7 @@ exports.getResults = async (req, res) => {
 
   // Get all questions for this test with correct answers
   const questions = await Question.find({ test: ts.test._id })
-    .select('type title optionA optionB optionC optionD correctAns correctNumber tolerance score')
+    .select('type title optionA optionB optionC optionD image optionImages correctAns correctNumber tolerance score')
     .sort({ createdAt: 1 });
 
   // Get all student answers
@@ -442,6 +442,8 @@ exports.getResults = async (req, res) => {
       optionB: q.optionB,
       optionC: q.optionC,
       optionD: q.optionD,
+      image: q.image || '',
+      optionImages: q.optionImages,
       correctAns: q.correctAns,
       correctNumber: q.correctNumber,
       tolerance: q.tolerance,

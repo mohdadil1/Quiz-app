@@ -8,7 +8,8 @@ const mongoose = require('mongoose');
 const questionSchema = new mongoose.Schema(
   {
     test: { type: mongoose.Schema.Types.ObjectId, ref: 'Test', required: true },
-    title: { type: String, required: true },
+    // May be empty when the question is a picture (see `image`)
+    title: { type: String, default: '' },
     // MCQ | MULTI | TRUE_FALSE | NUMERIC — see utils/questionTypes.js. Old questions have no
     // type stored and are treated as MCQ.
     type: { type: String, enum: ['MCQ', 'MULTI', 'TRUE_FALSE', 'NUMERIC'], default: 'MCQ' },
@@ -21,6 +22,15 @@ const questionSchema = new mongoose.Schema(
     correctAns: { type: String, default: '', lowercase: true, match: /^[a-d]{0,4}$/ },
     // NUMERIC only: the right answer and how far off an answer may be and still count
     correctNumber: { type: Number, default: null },
+    // Optional pictures (keys of QuestionImage docs, served from /api/images/:key):
+    // one for the question itself and one per option. An option may be picture-only.
+    image: { type: String, default: '' },
+    optionImages: {
+      a: { type: String, default: '' },
+      b: { type: String, default: '' },
+      c: { type: String, default: '' },
+      d: { type: String, default: '' }
+    },
     tolerance: { type: Number, default: 0, min: 0 },
     score: { type: Number, required: true, default: 1 },
     timeLimit: { type: Number, required: true, default: 1, min: 0.25 },

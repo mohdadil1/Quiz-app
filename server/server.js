@@ -52,6 +52,8 @@ app.use('/api/classes', require('./routes/classRoutes'));
 app.use('/api/tests', require('./routes/testRoutes'));
 app.use('/api/questions', require('./routes/questionRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));
+// Question / option pictures — public (plain <img> tags), see questionController.serveImage
+app.get('/api/images/:key', require('./controllers/questionController').serveImage);
 
 // 404
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));

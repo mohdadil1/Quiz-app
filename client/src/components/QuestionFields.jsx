@@ -1,4 +1,5 @@
 import RichTextEditor from './RichTextEditor';
+import ImagePicker from './ImagePicker';
 import { QUESTION_TYPES, typeOf } from './questionTypes';
 
 const LETTERS = ['a', 'b', 'c', 'd'];
@@ -36,6 +37,11 @@ export default function QuestionFields({ value, onChange }) {
       <div className="form-group">
         <label>Question</label>
         <RichTextEditor value={value.title} onChange={(title) => onChange({ title })} />
+        <ImagePicker
+          value={value.image || ''}
+          onChange={(image) => onChange({ image })}
+          label="Add a picture or diagram"
+        />
       </div>
 
       {(type === 'MCQ' || type === 'MULTI') && (
@@ -48,7 +54,14 @@ export default function QuestionFields({ value, onChange }) {
                   className="form-control"
                   value={value[`option${l.toUpperCase()}`] ?? ''}
                   onChange={(e) => onChange({ [`option${l.toUpperCase()}`]: e.target.value })}
-                  required
+                  placeholder={value.optionImages?.[l] ? 'Text (optional with a picture)' : ''}
+                  required={!value.optionImages?.[l]}
+                />
+                <ImagePicker
+                  compact
+                  value={value.optionImages?.[l] || ''}
+                  onChange={(key) => onChange({ optionImages: { ...(value.optionImages || {}), [l]: key } })}
+                  label="Picture"
                 />
               </div>
             ))}

@@ -66,19 +66,20 @@ function buildQuestionFields(body) {
     };
   }
 
-  // MCQ and MULTI: four options
+  // MCQ and MULTI: four options, each with text, a picture, or both
   const { optionA, optionB, optionC, optionD } = body;
-  if (![optionA, optionB, optionC, optionD].every(hasText)) return { error: 'All four options are required' };
+  const filled = [optionA, optionB, optionC, optionD].every((text, i) => hasText(text) || hasText(body.optionImages?.[LETTERS[i]]));
+  if (!filled) return { error: 'All four options are required (text or a picture)' };
   const correctAns = normalizeLetters(body.correctAns);
   if (!correctAns) return { error: 'Correct answer must be A, B, C or D' };
   if (type === 'MCQ' && correctAns.length !== 1) return { error: 'A single-choice question has exactly one correct option' };
   return {
     fields: {
       type,
-      optionA: String(optionA),
-      optionB: String(optionB),
-      optionC: String(optionC),
-      optionD: String(optionD),
+      optionA: String(optionA ?? ''),
+      optionB: String(optionB ?? ''),
+      optionC: String(optionC ?? ''),
+      optionD: String(optionD ?? ''),
       correctAns,
       correctNumber: null,
       tolerance: 0
@@ -110,7 +111,9 @@ function gradeAnswer(question, answer) {
 }
 
 function optionText(question, letter) {
-  return question[`option${letter.toUpperCase()}`] ?? '';
+  const text = question[`option${letter.toUpperCase()}`] ?? '';
+  if (String(text).trim()) return text;
+  return question.optionImages?.[letter] ? '[picture]' : '';
 }
 
 // Human-readable version of an answer value ('ac' → 'A. Paris, C. Rome'), for result pages and exports

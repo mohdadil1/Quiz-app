@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { RichText } from '../components/RichTextEditor';
+import Picture from '../components/Picture';
 
 export default function MockResults() {
   const [results, setResults] = useState(null);
@@ -131,6 +132,7 @@ export default function MockResults() {
                     <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: '#333' }}>
                       Q{idx + 1}: <RichText value={q.title} />
                     </p>
+                    {q.image && <div className="question-picture"><Picture imageKey={q.image} zoomable /></div>}
                     <p style={{ margin: 0, fontSize: 12, color: '#999' }}>
                       {isCorrect ? 'Correct!' : studentAnswer ? 'Incorrect' : 'Not answered'}
                       {q.type === 'MULTI' && ' · select all that apply'}
@@ -190,7 +192,12 @@ export default function MockResults() {
                         >
                           {opt.label}
                         </div>
-                        <div style={{ flex: 1 }}>{opt.text}</div>
+                        <div style={{ flex: 1 }}>
+                          {q.optionImages?.[opt.key] && (
+                            <Picture imageKey={q.optionImages[opt.key]} className="option-picture" alt={`Option ${opt.label}`} zoomable />
+                          )}
+                          {opt.text}
+                        </div>
                         {isCorrectChoice && (
                           <div style={{ color: '#4caf50', fontWeight: 'bold' }}>
                             ✓ Correct{isStudentChoice ? ' · your answer' : ''}

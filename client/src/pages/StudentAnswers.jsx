@@ -4,6 +4,7 @@ import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 import { RichText } from '../components/RichTextEditor';
 import { TYPE_SHORT } from '../components/questionTypes';
+import Picture from '../components/Picture';
 
 const RESULT_BADGE = {
   right: { label: 'Right', style: { background: '#e3f8d6', color: '#3a6d15' } },
@@ -77,6 +78,7 @@ export default function StudentAnswers() {
                         <td>{i + 1}</td>
                         <td>
                           <RichText value={q.title} />
+                          {q.image && <Picture imageKey={q.image} className="picture-thumb" zoomable />}
                           {q.type && q.type !== 'MCQ' && <span className="badge type-badge" style={{ marginLeft: 6 }}>{TYPE_SHORT[q.type]}</span>}
                         </td>
                         <td>

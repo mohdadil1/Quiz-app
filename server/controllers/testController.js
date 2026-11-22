@@ -7,6 +7,7 @@ const TestStudent = require('../models/TestStudent');
 const StudentAnswer = require('../models/StudentAnswer');
 const xlsx = require('xlsx');
 const { typeOf, TYPE_LABELS, describeAnswer, describeCorrect } = require('../utils/questionTypes');
+const images = require('../utils/images');
 
 const USN_COLLATOR = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 
@@ -213,7 +214,9 @@ exports.deleteTest = async (req, res) => {
     .map(ts => ts.student._id);
 
   await StudentAnswer.deleteMany({ testStudent: { $in: testStudents.map((ts) => ts._id) } });
+  const questions = await Question.find({ test: test._id }).select('image optionImages');
   await Question.deleteMany({ test: test._id });
+  await images.deleteUnusedImages(questions.flatMap((q) => images.imageKeysOf(q)));
   await TestStudent.deleteMany({ test: test._id });
   await deleteUnusedGuests(guestStudentIds);
   await test.deleteOne();
@@ -405,6 +408,7 @@ exports.studentAnswers = async (req, res) => {
       id: q._id,
       type: typeOf(q),
       title: q.title,
+      image: q.image || '',
       options: { a: q.optionA, b: q.optionB, c: q.optionC, d: q.optionD },
       correctAns: q.correctAns,
       correctText: describeCorrect(q),
@@ -568,7 +572,7 @@ exports.exportResults = async (req, res) => {
     }
     return {
       '#': i + 1,
-      Question: plainText(q.title),
+      Question: plainText(q.title) + (q.image ? ' [picture]' : ''),
       Type: TYPE_LABELS[typeOf(q)],
       'Correct answer': describeCorrect(q),
       Marks: q.score,
