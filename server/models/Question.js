@@ -40,4 +40,7 @@ const questionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every question list is "this test's questions in order"
+questionSchema.index({ test: 1, createdAt: 1 });
+
 module.exports = mongoose.model('Question', questionSchema);

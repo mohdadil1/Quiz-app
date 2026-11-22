@@ -45,6 +45,8 @@ function requireAuth(roles) {
         if (ts.test?.mode !== 'MOCK' && !ts.submitted && ts.sessionToken && decoded.sid !== ts.sessionToken) {
           return res.status(401).json({ message: 'SESSION_REPLACED' });
         }
+        // Hand the loaded entry (with its test) to the controller so it isn't read twice
+        req.testStudent = ts;
       }
 
       req.user = decoded; // { id, role, sessionId, ... }

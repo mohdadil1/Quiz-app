@@ -41,8 +41,16 @@ export default function StudentCredentials() {
         .finally(() => { if (!cancelled && showLoading) setLoading(false); });
     };
     load(true);
-    const intervalId = setInterval(() => load(false), 5000);
-    return () => { cancelled = true; clearInterval(intervalId); };
+    // Refresh every 10 s, but not while the tab is in the background
+    let timer;
+    const tick = () => {
+      timer = setTimeout(() => {
+        if (document.visibilityState !== 'hidden') load(false);
+        tick();
+      }, 10000);
+    };
+    tick();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [id]);
 
   const handlePrint = () => window.print();

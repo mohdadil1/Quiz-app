@@ -5,6 +5,13 @@ const TestStudent = require('../models/TestStudent');
 const Question = require('../models/Question');
 const StudentAnswer = require('../models/StudentAnswer');
 const { sign } = require('../middleware/auth');
+// The student's test entry (with its test). requireAuth has already loaded it; reuse that
+// instead of reading the same documents again on every request.
+function currentTestStudent(req) {
+  if (req.testStudent) return req.testStudent;
+  return TestStudent.findById(req.user.testStudentId).populate('test');
+}
+
 const { typeOf, gradeAnswer, optionLetters, describeAnswer, describeCorrect } = require('../utils/questionTypes');
 
 /**
@@ -129,7 +136,7 @@ exports.login = async (req, res) => {
  * Mirrors the old files/get_dashboard_contents.php which only showed tests in state RUNNING.
  */
 exports.dashboard = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
 
   await ts.test.applySchedule();
@@ -163,7 +170,7 @@ exports.dashboard = async (req, res) => {
  * identical — the client doesn't see correctAns either way.
  */
 exports.getQuestions = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test', 'shuffle endAt autoEnded status');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
   if (hasClosed(ts.test)) return res.status(410).json({ message: 'This test has closed' });
@@ -252,7 +259,7 @@ function hasClosed(test, graceMs = 0) {
  * or a changed clock can't buy extra time.
  */
 exports.startQuiz = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
   if (hasClosed(ts.test)) return res.status(410).json({ message: 'This test has closed' });
@@ -278,7 +285,7 @@ exports.submitAnswer = async (req, res) => {
   const { questionId } = req.body;
   const selectedOption = req.body.selectedOption ?? req.body.answer;
 
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.status(410).json({ message: 'Already submitted' });
   const left = remainingMs(ts, ts.test);
@@ -289,45 +296,39 @@ exports.submitAnswer = async (req, res) => {
     return res.status(410).json({ message: 'This test has closed' });
   }
 
-  const q = await Question.findById(questionId);
-  if (!q) return res.status(404).json({ message: 'Question not found' });
-  if (String(q.test) !== String(ts.test._id)) {
-    return res.status(403).json({ message: 'Question not part of your test' });
-  }
-
-  const existingAnswer = await StudentAnswer.findOne({ testStudent: ts._id, question: q._id });
-  if (existingAnswer) {
-    return res.json({ correct: existingAnswer.isCorrect, alreadyAnswered: true });
-  }
+  // One read: the question must belong to this student's test
+  const q = await Question.findOne({ _id: questionId, test: ts.test._id })
+    .select('type correctAns correctNumber tolerance score')
+    .lean();
+  if (!q) return res.status(404).json({ message: 'Question not found in your test' });
 
   const graded = gradeAnswer(q, selectedOption);
   if (graded.error) return res.status(400).json({ message: graded.error });
   const correct = graded.correct;
-  const picked = graded.value;
 
+  // The unique (testStudent, question) index makes a second answer fail here, so there's
+  // no need to look for an existing answer first
   try {
     await StudentAnswer.create({
       testStudent: ts._id,
       question: q._id,
-      selectedOption: picked,
+      selectedOption: graded.value,
       isCorrect: correct
     });
   } catch (error) {
     if (error.code === 11000) {
-      const answer = await StudentAnswer.findOne({ testStudent: ts._id, question: q._id });
+      const answer = await StudentAnswer.findOne({ testStudent: ts._id, question: q._id }).select('isCorrect').lean();
       return res.json({ correct: answer.isCorrect, alreadyAnswered: true });
     }
     throw error;
   }
 
-  if (correct) {
-    q.correctCount += 1;
-    ts.score += q.score;
-  } else {
-    q.wrongCount += 1;
-  }
-  await q.save();
-  await ts.save();
+  // Atomic increments: hundreds of students answering the same question at once must
+  // not overwrite each other's counts (read-modify-save would lose updates)
+  await Promise.all([
+    Question.updateOne({ _id: q._id }, { $inc: correct ? { correctCount: 1 } : { wrongCount: 1 } }),
+    correct ? TestStudent.updateOne({ _id: ts._id }, { $inc: { score: q.score || 0 } }) : null
+  ]);
 
   // Tell the client whether it was right, but not the correct answer
   res.json({ correct });
@@ -338,7 +339,7 @@ exports.submitAnswer = async (req, res) => {
  * Marks the TestStudent as submitted. Idempotent — safe to call twice.
  */
 exports.finish = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   // Already submitted (e.g. logged back in afterwards): keep the original result as it is
   if (ts.submitted && ts.test.mode !== 'MOCK') {
@@ -370,7 +371,7 @@ exports.finish = async (req, res) => {
  */
 exports.logViolation = async (req, res) => {
   const { type } = req.body;
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.submitted) return res.json({ violations: ts.violations, submitted: true });
   if (ts.test.mode === 'MOCK') {
@@ -396,7 +397,7 @@ exports.logViolation = async (req, res) => {
  * Only for MOCK tests.
  */
 exports.getResults = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId).populate('test');
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   if (ts.test.mode !== 'MOCK') return res.status(403).json({ message: 'Not available for standard tests' });
 
@@ -467,7 +468,7 @@ exports.getResults = async (req, res) => {
  * Logs out the student by setting active to false.
  */
 exports.logout = async (req, res) => {
-  const ts = await TestStudent.findById(req.user.testStudentId);
+  const ts = await currentTestStudent(req);
   if (!ts) return res.status(404).json({ message: 'Not found' });
   ts.active = false;
   await ts.save();

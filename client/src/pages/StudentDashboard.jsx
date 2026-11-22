@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { formatWhen } from '../components/TestScheduleFields';
+import usePolling from '../components/usePolling';
 import { useAuth } from '../context/AuthContext';
 const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
@@ -35,18 +36,18 @@ export default function StudentDashboard() {
 
   // While waiting for the teacher, keep checking so "Start Test" appears on its own.
   const waiting = !!info && !info.submitted && !info.running && !info.closed;
+  // Every 10–20 s at random, so a hall of 1000 waiting students is ~70 requests/s, not 200
+  usePolling(() => loadDashboard({ quiet: true }), { minMs: 10000, maxMs: 20000, enabled: waiting });
+  // Scheduled test: also check right after the opening time (spread over 0–8 s) so
+  // "Start Test" appears promptly without everyone asking at the same instant
+  const opensAt = info?.startAt ? new Date(info.startAt).getTime() : null;
   useEffect(() => {
-    if (!waiting) return undefined;
-    const id = setInterval(() => loadDashboard({ quiet: true }), 5000);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') loadDashboard({ quiet: true });
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [waiting, loadDashboard]);
+    if (!waiting || !opensAt) return undefined;
+    const wait = opensAt - Date.now() + 500 + Math.random() * 8000;
+    if (wait < 0 || wait > 24 * 60 * 60 * 1000) return undefined;
+    const timer = setTimeout(() => loadDashboard({ quiet: true }), wait);
+    return () => clearTimeout(timer);
+  }, [waiting, opensAt, loadDashboard]);
 
   const handleLogout = () => {
     logout();

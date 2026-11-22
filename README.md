@@ -210,6 +210,12 @@ On Windows PowerShell, set the variable first: `$env:VITE_API_URL="http://localh
 
 Run the server's unit tests (question grading and scheduling; no database needed) with `cd server && npm test`.
 
+**Large exams (hundreds to 1000+ students at once):**
+- One answer costs 6 database round trips, the last two in parallel. The Test Statistics page uses a fixed handful of queries however big the class, and per-question counters use atomic `$inc`, so simultaneous answers don't overwrite each other.
+- Waiting students check the dashboard every 10–20 seconds at random, plus once just after a scheduled opening time. Teacher pages refresh every 10 seconds and pause in background tabs.
+- Mongoose creates the indexes this needs automatically the first time the new code starts. On a big existing database, deploy outside exam hours.
+- Each server copy keeps at most `MONGO_POOL_SIZE` (default 10) database connections. Vercel runs many copies under load, so keep copies × pool size under your cluster's connection limit (500 on Atlas free and shared tiers). For real exams of this size, use a dedicated (paid) Atlas cluster, and run `scripts/loadTestCQuiz.js` with `LOAD_TEST_STUDENTS=1000` against a test deployment first.
+
 **Question pictures** live in the `questionimages` collection and are served publicly from `GET /api/images/:key`. Each key is a random 128-bit id, so pictures can't be guessed before a test. Responses are cached for a year by browsers and Vercel's CDN, which is safe because a picture never changes under its key. Uploads are checked by their actual bytes, not the file name, and SVG is refused because it can contain scripts.
 
 **Rate limits:** to stop password guessing, the login and emailed-code endpoints are rate-limited (see `server/middleware/rateLimit.js`). A student is blocked for 15 minutes after 10 wrong passwords for the same USN. The limit is counted per IP *and* USN, so a whole exam hall behind one college IP isn't locked out by one student. Teacher logins work the same way per email, and verification codes can be requested 5 times an hour per email. The counters are kept in memory, so on Vercel each server instance counts separately; add a shared store (Redis or MongoDB) if you need one global limit.

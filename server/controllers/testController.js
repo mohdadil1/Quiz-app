@@ -357,25 +357,34 @@ exports.scoreboard = async (req, res) => {
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
 
-  const rows = await TestStudent.find({ test: test._id }).populate('student').sort({ score: -1 });
-  const scores = await Promise.all(rows.map(async (row) => {
-    const answers = await StudentAnswer.find({ testStudent: row._id })
-      .populate('question', 'score')
-      .sort({ createdAt: 1 });
-    const latestByQuestion = new Map();
-    answers.forEach((answer) => latestByQuestion.set(String(answer.question?._id), answer));
-    return [...latestByQuestion.values()].reduce(
-      (sum, answer) => sum + (answer.isCorrect ? (answer.question?.score || 0) : 0),
-      0
-    );
-  }));
+  // A fixed handful of queries however many students there are (this page refreshes itself,
+  // so one query per student would hammer the database during a big exam)
+  const [rows, questions] = await Promise.all([
+    TestStudent.find({ test: test._id })
+      .select('student submitted violations violationTypes autoSubmitted')
+      .populate('student', 'rollno name')
+      .lean(),
+    Question.find({ test: test._id }).select('score').lean()
+  ]);
+  const marks = new Map(questions.map((q) => [String(q._id), q.score || 0]));
+  const answers = await StudentAnswer.find({ testStudent: { $in: rows.map((r) => r._id) }, isCorrect: true })
+    .select('testStudent question')
+    .lean();
+  const scoreOf = new Map();
+  for (const a of answers) {
+    const key = String(a.testStudent);
+    scoreOf.set(key, (scoreOf.get(key) || 0) + (marks.get(String(a.question)) || 0));
+  }
+  const scored = rows
+    .map((r) => ({ r, score: scoreOf.get(String(r._id)) || 0 }))
+    .sort((a, b) => b.score - a.score);
   res.json({
     test: { id: test._id, name: test.name, subject: test.subject },
-    rows: rows.map((r, index) => ({
+    rows: scored.map(({ r, score }) => ({
       testStudentId: r._id,
       rollno: r.student?.rollno,
       name: r.student?.name || '',
-      score: scores[index],
+      score,
       submitted: r.submitted,
       violations: r.violations || 0,
       violationTypes: r.violationTypes || [],

@@ -39,6 +39,9 @@ const testSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Teacher dashboard: a teacher's tests, newest first
+testSchema.index({ teacher: 1, date: -1 });
+
 /**
  * Move the status along the schedule if a scheduled time has passed. There is no
  * background job on Vercel, so this runs whenever a test is read (teacher dashboard,
