@@ -6,7 +6,7 @@ import TeacherLayout from '../components/TeacherLayout';
 function describeViolation(type) {
   return {
     'tab-switch': 'Tab switching',
-    'assistant-opened': 'Google Assistant / screen assistant opened',
+    'assistant-opened': 'Left the test screen (assistant, notification panel or overlay)',
     'focus-lost': 'Switched to another window or app',
     'second-device-login': 'Tried to log in from a second device',
     'fullscreen-exit': 'Exited fullscreen mode',
@@ -22,6 +22,30 @@ export default function TestStats() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [exporting, setExporting] = useState(false);
+  const [exportErr, setExportErr] = useState('');
+
+  // Download the results as an Excel workbook (Results, Answers and Questions sheets)
+  const exportExcel = async () => {
+    setExporting(true);
+    setExportErr('');
+    try {
+      const response = await api.get(`/tests/${id}/export`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = url;
+      const testName = (data?.test?.name || 'Test').replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Test';
+      link.download = `${testName} results.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setExportErr('Could not export the results. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -33,8 +57,16 @@ export default function TestStats() {
         .finally(() => { if (!cancelled && showLoading) setLoading(false); });
     };
     load(true);
-    const intervalId = setInterval(() => load(false), 5000);
-    return () => { cancelled = true; clearInterval(intervalId); };
+    // Refresh every 10 s, but not while the tab is in the background
+    let timer;
+    const tick = () => {
+      timer = setTimeout(() => {
+        if (document.visibilityState !== 'hidden') load(false);
+        tick();
+      }, 10000);
+    };
+    tick();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [id]);
 
   if (loading) return <TeacherLayout title="Test Statistics" showBack><div className="empty-state">Loading…</div></TeacherLayout>;
@@ -49,6 +81,9 @@ export default function TestStats() {
           <Link to={`/admin/tests/${id}/question-stats`} className="btn btn-secondary">
             Question Stats
           </Link>
+          <button className="btn btn-secondary" onClick={exportExcel} disabled={exporting}>
+            {exporting ? 'Exporting…' : 'Export to Excel'}
+          </button>
           <button className="btn btn-secondary" onClick={() => window.print()}>Print</button>
         </>
       }
@@ -70,6 +105,7 @@ export default function TestStats() {
           .stats-table td:nth-child(n+5) { display: none !important; }
         }
       `}</style>
+      {exportErr && <div className="alert alert-error print-hide">{exportErr}</div>}
       <div className="card">
         <div className="card-header"><h3>{data.test.name} — {data.test.subject}</h3></div>
         <div className="card-body">

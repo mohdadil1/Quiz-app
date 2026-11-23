@@ -1,9 +1,10 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/studentController');
 const { requireAuth } = require('../middleware/auth');
+const limits = require('../middleware/rateLimit');
 
 // Public
-router.post('/login', ctrl.login);
+router.post('/login', limits.studentLogin, ctrl.login);
 
 // Authenticated student
 router.get('/dashboard', requireAuth('student'), ctrl.dashboard);

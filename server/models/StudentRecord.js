@@ -17,5 +17,7 @@ const studentRecordSchema = new mongoose.Schema(
 );
 
 studentRecordSchema.index({ rollno: 1, class: 1, teacher: 1 }, { unique: true });
+// Listing / enrolling a class's students
+studentRecordSchema.index({ class: 1 });
 
 module.exports = mongoose.model('StudentRecord', studentRecordSchema);

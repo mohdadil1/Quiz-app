@@ -7,6 +7,9 @@ const connectDB = require('./config/db');
 
 const app = express();
 
+// Vercel / Render sit behind one proxy: trust it so req.ip is the student's real IP (used by the rate limits)
+app.set('trust proxy', 1);
+
 // Allow multiple origins for development and production
 const allowedOrigins = [
   'http://localhost:5173',
@@ -49,6 +52,8 @@ app.use('/api/classes', require('./routes/classRoutes'));
 app.use('/api/tests', require('./routes/testRoutes'));
 app.use('/api/questions', require('./routes/questionRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));
+// Question / option pictures — public (plain <img> tags), see questionController.serveImage
+app.get('/api/images/:key', require('./controllers/questionController').serveImage);
 
 // 404
 app.use((req, res) => res.status(404).json({ message: 'Not found' }));

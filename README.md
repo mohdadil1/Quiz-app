@@ -64,6 +64,7 @@ On the **Dashboard**, click **+ New Test**. Fill in the name, subject, date, num
 - **Enable webcam proctoring for this test:** see [Run the test](#5-run-the-test).
 - **Timing:** *Per question* gives every question its own countdown (set on each question). *Total time for the whole test* gives one countdown, e.g. 30 minutes, for the whole test; questions still come one at a time with no going back, and students can **Skip** a question.
 - **Shuffle questions and options for each student:** every student gets their own order of questions and of the four options, so neighbours can't copy by position. A student keeps the same order if they reconnect.
+- **Opens at / Closes at (optional):** schedule the test. At the opening time a `PENDING` test switches to `RUNNING` by itself, and at the closing time it is marked `COMPLETED`. Answers sent after the closing time are refused, and a total-time countdown never runs past it. Students waiting on the dashboard see when the test opens. You can still change the status by hand. To reopen a test that closed automatically, move the closing time later. Leave both empty to start and end the test yourself.
 
 Every student in the chosen class is enrolled automatically, each with their own password.
 
@@ -71,9 +72,33 @@ Then open the test from the Dashboard to reach **Test Details**:
 
 ![Test Details](docs/screenshots/test-details.png)
 
-- **Add New Question:** type the question, the four options, the correct answer, the marks and the time limit (in minutes).
+- **Add New Question:** choose the **question type**, then type the question, the answer, the marks and the time limit (in minutes). The types are:
+
+  | Type | What the student does | How it's marked |
+  |---|---|---|
+  | **Single choice** | picks one of four options | right if it's the correct option |
+  | **Multiple correct** | ticks every option that applies, then presses **Submit answer** | right only if they tick exactly the correct options (all-or-nothing) |
+  | **True / False** | picks True or False | right if it matches |
+  | **Numeric** | types a number, then presses **Submit answer** | right if it's within the tolerance you set (e.g. 9.81 ± 0.05); 0 means it must match exactly |
+
+  For per-question timing, if time runs out after a student has ticked options or typed a number, that answer is still sent.
+- **Pictures and diagrams:** click **Add a picture or diagram** under the question to attach a graph, circuit, map or photo. You can also drag a file onto that box, or click it and paste a screenshot with Ctrl+V. Single-choice and multiple-correct options can each have a picture too, with or without text, e.g. "Which graph shows uniform motion?" with four graphs as the answers. Students can tap a question's picture to see it full screen.
+  - PNG, JPEG, WebP and GIF are accepted. Big pictures are shrunk in your browser before upload (to at most 1600 px), so they load quickly on students' phones.
+  - Pictures are stored in your MongoDB database, since Vercel has no file storage. A typical diagram is 50–300 KB, so the free 512 MB Atlas tier holds a few thousand. Removing a picture, or deleting its question or test, deletes it from the database. Pictures you upload but never save are removed after a day.
+  - Spreadsheet uploads are text only. Add pictures afterwards with **Edit** on the question.
 - **Upload:** add many questions at once from an Excel file (`.xlsx`, `.xls`, `.ods`) with **no header row** and these columns in order:
-  `question | option A | option B | option C | option D | correct (a/b/c/d) | marks | time limit (minutes)`
+  `question | option A | option B | option C | option D | correct | marks | time limit (minutes) | tolerance`
+
+  The type is worked out from each row:
+
+  | Type | Options | Correct | Tolerance |
+  |---|---|---|---|
+  | Single choice | all four | `B` | — |
+  | Multiple correct | all four | `A,C` | — |
+  | True / False | leave empty | `True` or `False` | — |
+  | Numeric | leave empty | the number, e.g. `9.81` | optional, e.g. `0.05` |
+
+  Rows with a mistake are skipped, and the upload says how many.
 - **Add guest student to test:** enrol someone who isn't in the class, for this test only.
 - **Mark Completed:** ends the test. **Delete Test:** removes the test, its questions and its results.
 
@@ -113,6 +138,11 @@ Go to **Statistics** and pick a completed test.
 ![Statistics](docs/screenshots/statistics.png)
 
 **Test Statistics** shows each student's score, whether they submitted (or were auto-submitted) and their violations. **Print** prints the #, USN, Name and Score columns.
+
+**Export to Excel** downloads the results as an `.xlsx` workbook with three sheets:
+- **Results:** a summary (class, number of students, average score), then one row per student with rank, USN, name, score, percentage, right/wrong/not answered, status and violations.
+- **Answers:** every student's answer to every question, marked ✓ or ✗, with the correct answers on the first row.
+- **Questions:** each question's type, correct answer and how many students got it right.
 
 ![Test Statistics](docs/screenshots/test-statistics.png)
 
@@ -177,6 +207,18 @@ VITE_API_URL=http://localhost:5000/api npm run dev   # http://localhost:5173
 ```
 
 On Windows PowerShell, set the variable first: `$env:VITE_API_URL="http://localhost:5000/api"; npm run dev`.
+
+Run the server's unit tests (question grading and scheduling; no database needed) with `cd server && npm test`.
+
+**Large exams (hundreds to 1000+ students at once):**
+- One answer costs 6 database round trips, the last two in parallel. The Test Statistics page uses a fixed handful of queries however big the class, and per-question counters use atomic `$inc`, so simultaneous answers don't overwrite each other.
+- Waiting students check the dashboard every 10–20 seconds at random, plus once just after a scheduled opening time. Teacher pages refresh every 10 seconds and pause in background tabs.
+- Mongoose creates the indexes this needs automatically the first time the new code starts. On a big existing database, deploy outside exam hours.
+- Each server copy keeps at most `MONGO_POOL_SIZE` (default 10) database connections. Vercel runs many copies under load, so keep copies × pool size under your cluster's connection limit (500 on Atlas free and shared tiers). For real exams of this size, use a dedicated (paid) Atlas cluster, and run `scripts/loadTestCQuiz.js` with `LOAD_TEST_STUDENTS=1000` against a test deployment first.
+
+**Question pictures** live in the `questionimages` collection and are served publicly from `GET /api/images/:key`. Each key is a random 128-bit id, so pictures can't be guessed before a test. Responses are cached for a year by browsers and Vercel's CDN, which is safe because a picture never changes under its key. Uploads are checked by their actual bytes, not the file name, and SVG is refused because it can contain scripts.
+
+**Rate limits:** to stop password guessing, the login and emailed-code endpoints are rate-limited (see `server/middleware/rateLimit.js`). A student is blocked for 15 minutes after 10 wrong passwords for the same USN. The limit is counted per IP *and* USN, so a whole exam hall behind one college IP isn't locked out by one student. Teacher logins work the same way per email, and verification codes can be requested 5 times an hour per email. The counters are kept in memory, so on Vercel each server instance counts separately; add a shared store (Redis or MongoDB) if you need one global limit.
 
 > Change the seeded `admin` password (Profile → Change Password) before using it anywhere real.
 

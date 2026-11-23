@@ -16,4 +16,8 @@ router.put('/:id', ctrl.updateQuestion);
 router.delete('/:id', ctrl.deleteQuestion);
 router.post('/upload', upload.single('file'), ctrl.uploadQuestions);
 
+// Pictures for questions and options (the browser shrinks them before upload)
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 1.5 * 1024 * 1024, files: 1 } });
+router.post('/images', imageUpload.single('image'), ctrl.uploadImage);
+
 module.exports = router;

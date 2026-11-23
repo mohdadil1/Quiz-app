@@ -9,7 +9,8 @@
     "dev": "nodemon server.js",
     "seed": "node seed.js",
     "seed-mock-questions": "node scripts/seedMockQuestions.js",
-    "load-test-c-quiz": "node scripts/loadTestCQuiz.js"
+    "load-test-c-quiz": "node scripts/loadTestCQuiz.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -17,6 +18,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-async-errors": "^3.1.1",
+    "express-rate-limit": "^8.7.5",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.3.2",
     "multer": "^1.4.5-lts.1",

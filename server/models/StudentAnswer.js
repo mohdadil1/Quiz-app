@@ -8,7 +8,8 @@ const studentAnswerSchema = new mongoose.Schema(
   {
     testStudent: { type: mongoose.Schema.Types.ObjectId, ref: 'TestStudent', required: true },
     question: { type: mongoose.Schema.Types.ObjectId, ref: 'Question', required: true },
-    selectedOption: { type: String, enum: ['a', 'b', 'c', 'd'], required: true },
+    // 'b' for single choice / true-false, 'ac' for multiple-correct, the typed number for numeric
+    selectedOption: { type: String, required: true, maxlength: 50 },
     isCorrect: { type: Boolean, required: true }
   },
   { timestamps: true }

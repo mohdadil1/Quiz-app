@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
+import { formatWhen } from '../components/TestScheduleFields';
 import TeacherLayout from '../components/TeacherLayout';
 
 export default function TeacherDashboard() {
@@ -74,6 +75,8 @@ export default function TeacherDashboard() {
                     <div className="item-meta">
                       <span><strong>Subject:</strong> {t.subject}</span>
                       <span><strong>Class:</strong> {t.class?.name || '—'}</span>
+                      {t.startAt && t.status === 'PENDING' && <span><strong>Opens:</strong> {formatWhen(t.startAt)}</span>}
+                      {t.endAt && t.status !== 'COMPLETED' && <span><strong>Closes:</strong> {formatWhen(t.endAt)}</span>}
                     </div>
                   </div>
                   <div className="item-card-date text-muted">

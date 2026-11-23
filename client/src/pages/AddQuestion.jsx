@@ -2,36 +2,27 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
-import RichTextEditor from '../components/RichTextEditor';
+import QuestionFields from '../components/QuestionFields';
+import { emptyQuestion, questionPayload, validateQuestion } from '../components/questionTypes';
 
 export default function AddQuestion() {
   const { id: testId } = useParams();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    title: '',
-    optionA: '',
-    optionB: '',
-    optionC: '',
-    optionD: '',
-    correctAns: 'A',
-    score: 1,
-    timeLimit: 1
-  });
+  const [form, setForm] = useState(emptyQuestion);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const update = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!form.title.replace(/<[^>]*>/g, '').trim()) {
-      setErr('Question title is required');
+    const problem = validateQuestion(form);
+    if (problem) {
+      setErr(problem);
       return;
     }
     setLoading(true);
     try {
-      await api.post('/questions', { testId, ...form, score: Number(form.score) });
+      await api.post('/questions', { testId, ...questionPayload(form) });
       navigate(`/admin/tests/${testId}`);
     } catch (e) {
       setErr(e?.response?.data?.message || 'Failed to add question');
@@ -46,49 +37,7 @@ export default function AddQuestion() {
         <div className="card-body">
           {err && <div className="alert alert-error">{err}</div>}
           <form onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label>Question title</label>
-              <RichTextEditor value={form.title} onChange={(title) => setForm({ ...form, title })} />
-            </div>
-            <div className="row row-2">
-              <div className="form-group">
-                <label>Option A</label>
-                <input className="form-control" value={form.optionA} onChange={update('optionA')} required />
-              </div>
-              <div className="form-group">
-                <label>Option B</label>
-                <input className="form-control" value={form.optionB} onChange={update('optionB')} required />
-              </div>
-              <div className="form-group">
-                <label>Option C</label>
-                <input className="form-control" value={form.optionC} onChange={update('optionC')} required />
-              </div>
-              <div className="form-group">
-                <label>Option D</label>
-                <input className="form-control" value={form.optionD} onChange={update('optionD')} required />
-              </div>
-            </div>
-            <div className="row row-2">
-              <div className="form-group">
-                <label>Correct answer</label>
-                <select className="form-control" value={form.correctAns} onChange={update('correctAns')}>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="D">D</option>
-                </select>
-              </div>
-            </div>
-            <div className="row row-2">
-              <div className="form-group">
-                <label>Score</label>
-                <input type="number" min="1" className="form-control" value={form.score} onChange={update('score')} required />
-              </div>
-              <div className="form-group">
-                <label>Time limit (minutes)</label>
-                <input type="number" min="0.25" step="0.25" className="form-control" value={form.timeLimit} onChange={update('timeLimit')} required />
-              </div>
-            </div>
+            <QuestionFields value={form} onChange={(changes) => setForm((f) => ({ ...f, ...changes }))} />
             <div className="text-center">
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? 'Adding…' : 'ADD QUESTION'}

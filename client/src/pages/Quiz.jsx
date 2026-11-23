@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/client';
+import api, { imageUrl } from '../api/client';
+import Picture from '../components/Picture';
 import { useAuth } from '../context/AuthContext';
 import { RichText } from '../components/RichTextEditor';
 import useFaceMonitor from '../components/useFaceMonitor';
@@ -29,7 +30,7 @@ function getQuestionTimeLimit(question) {
 // Banner text for the most recent violation: what was detected + what to do
 const VIOLATION_MESSAGES = {
   'tab-switch': 'Tab switching detected. Stay on the test tab and do not minimise the browser.',
-  'assistant-opened': 'Google Assistant / screen assistant detected (Assistant, Gemini or Circle to Search). Do not open assistants or overlays during the test.',
+  'assistant-opened': 'You left the test screen (an assistant like Google Assistant, Gemini or Circle to Search, the notification panel, or another overlay). Stay on the test screen.',
   'focus-lost': 'Switching to another window or app detected. Keep the test window active.',
   'fullscreen-exit': 'Fullscreen exit detected. Stay in fullscreen.',
   'camera-disabled': 'Camera turned off. Keep your camera on.',
@@ -38,7 +39,8 @@ const VIOLATION_MESSAGES = {
   'multiple-faces': 'Multiple faces detected. Only you may be in front of the camera.'
 };
 
-// Phones/tablets: a visible page losing focus there means an assistant or overlay opened
+// Phones/tablets: a visible page losing focus there means something covered it (an assistant,
+// the notification panel, a call banner…) — or a tab switch the browser hasn't reported yet
 function isMobileDevice() {
   if (navigator.userAgentData?.mobile) return true;
   return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
@@ -90,6 +92,11 @@ export default function Quiz() {
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState('');
   const [selected, setSelected] = useState(null); // visual feedback only
+  // Answers that need a Submit press: ticked options ('ac') for multiple-correct, typed text for numeric
+  const [picks, setPicks] = useState('');
+  const [numberText, setNumberText] = useState('');
+  // The current unsent answer, so a per-question timeout sends it instead of skipping
+  const draftRef = useRef(null);
 
   // Anti-cheat state
   const [warnings, setWarnings] = useState(0);
@@ -213,7 +220,7 @@ export default function Quiz() {
   }, [logout, navigate, isMock, stopCamera]);
 
   // -------- Answer / skip a question --------
-  // `option` is 'a'|'b'|'c'|'d' for an answer, or null for a timeout-skip.
+  // `option` is the answer ('b', 'ac' for multiple-correct, '9.8' for numeric), or null for a skip.
   const submitAnswerOrSkip = useCallback(async (option) => {
     if (submittingRef.current || finishedRef.current) return;
     const currentIdx = idxRef.current;
@@ -222,6 +229,7 @@ export default function Quiz() {
 
     submittingRef.current = true;
     setSubmitting(true);
+    setErr('');
     setSelected(option);
 
     try {
@@ -242,6 +250,10 @@ export default function Quiz() {
         idxRef.current = next;
         setIdx(next);
         setSelected(null);
+        setPicks('');
+        setNumberText('');
+        draftRef.current = null;
+        setErr('');
         submittingRef.current = false;
         setSubmitting(false);
       }
@@ -255,6 +267,16 @@ export default function Quiz() {
       setSubmitting(false);
     }
   }, [questions, finish]);
+
+  // -------- Fetch the next question's pictures early so they show instantly --------
+  useEffect(() => {
+    const next = questions[idx + 1];
+    if (!next) return;
+    [next.image, ...Object.values(next.optionImages || {})].filter(Boolean).forEach((key) => {
+      const img = new Image();
+      img.src = imageUrl(key);
+    });
+  }, [idx, questions]);
 
   // -------- Per-question countdown --------
   useEffect(() => {
@@ -272,7 +294,8 @@ export default function Quiz() {
       setTimeLeft(remaining);
       if (remaining === 0) {
         clearInterval(intervalId);
-        submitAnswerOrSkip(null);
+        // Time's up: send whatever was ticked / typed so far, otherwise skip
+        submitAnswerOrSkip(draftRef.current);
       }
     }, 250);
 
@@ -379,21 +402,52 @@ export default function Quiz() {
     if (isMock || !started) return;
 
     const CLASSIFY_DELAY_MS = 700;
-    let pending = null; // { hidden, blurred, fullscreenExit, timer }
+    // Phones report "page hidden" late when switching tabs (first the tab switcher animates
+    // or fullscreen drops, with the page still visible). Before calling a visible-but-unfocused
+    // page an overlay, give the browser this much longer to say the tab was hidden.
+    const MOBILE_HIDDEN_WAIT_MS = 1800;
+    const mobile = isMobileDevice();
+    let pending = null; // { hidden, blurred, fullscreenExit, waited, timer }
     let lost = false;   // focus currently lost (one violation per episode)
 
     const classify = () => {
       const p = pending;
-      pending = null;
-      if (!p || finishedRef.current) return;
+      if (!p || finishedRef.current) {
+        pending = null;
+        return;
+      }
       if (p.hidden || document.hidden) {
+        pending = null;
         handleViolation('tab-switch');
-      } else if (p.blurred && !document.hasFocus()) {
-        // Page still visible but something else has focus
-        handleViolation(isMobileDevice() ? 'assistant-opened' : 'focus-lost');
-      } else if (p.fullscreenExit && !getFullscreenElement() && enteredFullscreenRef.current) {
+        return;
+      }
+      if (p.blurred && (p.waited || !document.hasFocus())) {
+        // Visible but unfocused for 0.7 s. On a phone, wait a bit more for a late "hidden".
+        if (mobile && !p.waited) {
+          p.waited = true;
+          p.timer = setTimeout(classify, MOBILE_HIDDEN_WAIT_MS);
+          return;
+        }
+        pending = null;
+        handleViolation(mobile ? 'assistant-opened' : 'focus-lost');
+        return;
+      }
+      pending = null;
+      if (p.fullscreenExit && !getFullscreenElement() && enteredFullscreenRef.current) {
         handleViolation('fullscreen-exit');
       }
+    };
+
+    // The page was hidden after this episode's warning was already recorded as "left the
+    // screen": it was really a tab switch. Fix the label (banner + teacher's record) without
+    // counting another warning.
+    const relabelAsTabSwitch = () => {
+      const a = awayRef.current;
+      if (!a.away || !a.counted || !['assistant-opened', 'focus-lost'].includes(a.reason)) return;
+      const from = a.reason;
+      a.reason = 'tab-switch';
+      setLastViolation('tab-switch');
+      api.post('/students/quiz/violation', { type: 'tab-switch', relabelFrom: from }).catch(() => {});
     };
     // Start an away episode (if one isn't already open)
     const markAway = () => {
@@ -431,11 +485,20 @@ export default function Quiz() {
         pending.timer = setTimeout(classify, CLASSIFY_DELAY_MS);
       }
       pending[signal] = true;
+      // Waiting on a phone and the tab has now gone hidden: decide right away
+      if (signal === 'hidden' && pending.waited) {
+        clearTimeout(pending.timer);
+        classify();
+      }
     };
 
     const onVisibilityChange = () => {
-      if (document.hidden) note('hidden');
-      else checkBack();
+      if (document.hidden) {
+        relabelAsTabSwitch();
+        note('hidden');
+      } else {
+        checkBack();
+      }
     };
 
     const onBlur = () => {
@@ -478,6 +541,7 @@ export default function Quiz() {
     if (!document.hasFocus()) onBlur();
     return () => {
       if (pending) clearTimeout(pending.timer);
+      pending = null;
       clearInterval(pollId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
@@ -666,7 +730,7 @@ export default function Quiz() {
             ? [['📷', <>Keep your camera on, your face visible, and <strong>look at the screen</strong>.</>]]
             : []),
           ['🚫', 'Right-click, copy, text selection and developer tools are disabled.'],
-          ['🤖', <>Don&apos;t open <strong>Google Assistant, Gemini, Circle to Search</strong> or any overlay — the question hides and it counts as a warning.</>],
+          ['🤖', <>Don&apos;t switch tabs or open <strong>Google Assistant, Gemini, Circle to Search</strong>, the notification panel or any overlay. The question hides and it counts as a warning.</>],
           ['📵', <>Turn on <strong>Do Not Disturb</strong> before starting so calls and notifications can&apos;t interrupt you. If a call comes in or you leave by mistake, it counts as <strong>only one</strong> warning — come back, tap <strong>Resume Fullscreen</strong> and carry on. Your answers are saved.</>],
           ['⚠️', <>On the <strong>{ordinal(MAX_WARNINGS)} warning</strong> your test is submitted automatically.</>]
         ];
@@ -719,6 +783,8 @@ export default function Quiz() {
 
   // -------- Active quiz --------
   const q = questions[idx];
+  const questionType = q?.type || 'MCQ';
+  const numberValid = isNumberText(numberText);
   const questionTimeLimit = getQuestionTimeLimit(q);
   const remaining = MAX_WARNINGS - warnings;
   const progressPct = ((idx) / questions.length) * 100;
@@ -863,21 +929,88 @@ export default function Quiz() {
               <span className="question-number">{idx + 1}</span>
               <div className="question-title" aria-hidden={isMock ? undefined : 'true'}><RichText value={q.title} /></div>
             </div>
-            <div className="quiz-options">
-              {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => (
-                <button
-                  key={key}
-                  className={`option-btn ${selected === key ? 'is-selected' : ''}`}
-                  onClick={() => submitAnswerOrSkip(key)}
+            {q.image && (
+              <div className="question-picture">
+                <Picture imageKey={q.image} zoomable />
+              </div>
+            )}
+            {err && <div className="alert alert-error" role="alert">{err}</div>}
+            {questionType === 'MULTI' && (
+              <p className="quiz-type-hint">Select all correct options, then press Submit answer.</p>
+            )}
+            {questionType === 'NUMERIC' ? (
+              <form
+                className="quiz-numeric"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (numberValid) submitAnswerOrSkip(numberText.trim());
+                }}
+              >
+                <label htmlFor="numeric-answer">Your answer</label>
+                <input
+                  id="numeric-answer"
+                  className="form-control"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="Type a number"
+                  value={numberText}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setNumberText(text);
+                    draftRef.current = isNumberText(text) ? text.trim() : null;
+                  }}
                   disabled={submitting || outOfFullscreen}
-                  aria-label={isMock ? undefined : `Option ${'ABCD'[pos]}`}
-                >
-                  {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
-                  <span className="option-letter">{'ABCD'[pos]}</span>
-                  <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>{q[`option${key.toUpperCase()}`]}</span>
+                  autoFocus
+                />
+                {numberText.trim() !== '' && !numberValid && (
+                  <div className="quiz-input-error">Enter a number, e.g. 42, -3.5 or 0.25</div>
+                )}
+                <button type="submit" className="btn btn-primary quiz-submit-answer" disabled={!numberValid || submitting || outOfFullscreen}>
+                  Submit answer
                 </button>
-              ))}
-            </div>
+              </form>
+            ) : (
+              <div className="quiz-options" role={questionType === 'MULTI' ? 'group' : undefined}>
+                {(q.optionOrder || ['a', 'b', 'c', 'd']).map((key, pos) => {
+                  const ticked = questionType === 'MULTI' ? picks.includes(key) : selected === key;
+                  return (
+                    <button
+                      key={key}
+                      className={`option-btn ${questionType === 'MULTI' ? 'option-btn--multi' : ''} ${ticked ? 'is-selected' : ''}`}
+                      onClick={() => {
+                        if (questionType !== 'MULTI') {
+                          submitAnswerOrSkip(key);
+                          return;
+                        }
+                        const next = picks.includes(key) ? picks.replace(key, '') : [...picks, key].sort().join('');
+                        setPicks(next);
+                        draftRef.current = next || null;
+                      }}
+                      disabled={submitting || outOfFullscreen}
+                      aria-pressed={questionType === 'MULTI' ? ticked : undefined}
+                      aria-label={isMock ? undefined : `Option ${'ABCD'[pos]}`}
+                    >
+                      {/* Shown letter follows the (possibly shuffled) position; the original key is what's sent */}
+                      <span className="option-letter">{questionType === 'MULTI' && ticked ? '✓' : 'ABCD'[pos]}</span>
+                      <span className="option-text" aria-hidden={isMock ? undefined : 'true'}>
+                        {q.optionImages?.[key] && <Picture imageKey={q.optionImages[key]} className="option-picture" alt={`Option ${'ABCD'[pos]}`} />}
+                        {q[`option${key.toUpperCase()}`]}
+                      </span>
+                    </button>
+                  );
+                })}
+                {questionType === 'MULTI' && (
+                  <button
+                    className="btn btn-primary quiz-submit-answer"
+                    onClick={() => submitAnswerOrSkip(picks)}
+                    disabled={!picks || submitting || outOfFullscreen}
+                  >
+                    Submit answer
+                  </button>
+                )}
+              </div>
+            )}
             {isTotalTime && (
               <div className="text-right mt-2">
                 <button
@@ -908,4 +1041,9 @@ function formatTime(secs) {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Same rule as the server: optional sign, digits with an optional decimal point, optional exponent
+function isNumberText(text) {
+  return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(String(text).trim().replace(/,/g, ''));
 }

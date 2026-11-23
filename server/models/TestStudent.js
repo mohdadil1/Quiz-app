@@ -38,5 +38,7 @@ const testStudentSchema = new mongoose.Schema(
 );
 
 testStudentSchema.index({ test: 1, student: 1 }, { unique: true });
+// Student login looks entries up by student (USN) alone
+testStudentSchema.index({ student: 1 });
 
 module.exports = mongoose.model('TestStudent', testStudentSchema);
