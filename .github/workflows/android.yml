@@ -75,3 +75,30 @@ jobs:
             --title "Quizora Android app 1.0.${{ github.run_number }}" \
             --notes "Install on Android 8.0 or newer: download the APK on the phone and open it (allow installing from this source when asked). Built from ${{ github.sha }}." \
             --target "${{ github.sha }}"
+
+  # Installs the APK on an Android emulator, opens it and checks the site loads and
+  # screen capture is blocked. Results appear as annotations on the run.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: quizora-android-1.0.${{ github.run_number }}
+          path: dist
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: bash .github/scripts/android-smoke-test.sh
