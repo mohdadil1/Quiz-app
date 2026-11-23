@@ -76,8 +76,8 @@ jobs:
             --notes "Install on Android 8.0 or newer: download the APK on the phone and open it (allow installing from this source when asked). Built from ${{ github.sha }}." \
             --target "${{ github.sha }}"
 
-  # Installs the APK on an Android emulator, opens it and checks the site loads and
-  # screen capture is blocked. Results appear as annotations on the run.
+  # Installs the APK on an Android emulator, opens it and checks the site loads and the
+  # window is protected from screen capture (FLAG_SECURE). Results appear as annotations on the run.
   smoke-test:
     needs: build
     runs-on: ubuntu-latest

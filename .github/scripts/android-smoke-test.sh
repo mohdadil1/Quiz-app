@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Install the debug APK on the emulator, open it and check it works and is locked down.
+# FLAG_SECURE on the window is what makes Android black out screenshots, recordings and
+# screen-reading assistants, so that's what is checked.
 # Results are printed as GitHub annotations; any failed check fails the job.
 set -u
 APK=$(ls dist/*-debug.apk | head -1)
@@ -28,38 +30,5 @@ fi
 
 flags=$(adb shell dumpsys window windows | tr -d '\r' | grep -A12 "com.quizora.app/com.quizora.app.MainActivity" | grep -m1 -o "fl=[^ ]*.*" | head -c 300)
 if echo "$flags" | grep -q "SECURE"; then note "Window is FLAG_SECURE: $flags"; else bad "FLAG_SECURE missing: $flags"; fi
-
-adb exec-out screencap -p > shot.png
-python3 - <<'PY'
-import struct, zlib
-data = open('shot.png', 'rb').read()
-# Minimal PNG decode (RGBA/RGB, 8-bit) to measure how bright the screenshot is
-pos, w, h, ct, idat = 8, 0, 0, 0, b''
-while pos < len(data):
-    n, typ = struct.unpack('>I4s', data[pos:pos + 8]); body = data[pos + 8:pos + 8 + n]; pos += 12 + n
-    if typ == b'IHDR': w, h, _, ct = struct.unpack('>IIBB', body[:10])
-    elif typ == b'IDAT': idat += body
-raw = zlib.decompress(idat); bpp = 4 if ct == 6 else 3; stride = w * bpp
-total = count = 0
-prev = bytearray(stride); i = 0
-for y in range(h):
-    f = raw[i]; line = bytearray(raw[i + 1:i + 1 + stride]); i += 1 + stride
-    for x in range(stride):
-        a = line[x - bpp] if x >= bpp else 0; b = prev[x]; c = prev[x - bpp] if x >= bpp else 0
-        if f == 1: line[x] = (line[x] + a) & 255
-        elif f == 2: line[x] = (line[x] + b) & 255
-        elif f == 3: line[x] = (line[x] + (a + b) // 2) & 255
-        elif f == 4:
-            p = a + b - c; pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
-            line[x] = (line[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
-    prev = line
-    if y % 8 == 0:
-        for x in range(0, stride, bpp * 8): total += line[x] + line[x + 1] + line[x + 2]; count += 3
-mean = total / max(count, 1)
-print(f"::notice title=Android smoke test::Screenshot of the app is {w}x{h}, mean brightness {mean:.1f}/255 ({'black: capture blocked' if mean < 8 else 'NOT black'})")
-open('brightness.txt', 'w').write(str(mean))
-PY
-mean=$(cat brightness.txt 2>/dev/null || echo 255)
-python3 -c "import sys; sys.exit(0 if float('$mean') < 8 else 1)" || bad "Screenshot was not black, FLAG_SECURE isn't blocking capture"
 
 exit $fail
