@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { imageUrl } from '../api/client';
 import Picture from '../components/Picture';
+import { inQuizoraApp, pageHidden, pageHasFocus, startAppExam, endAppExam } from '../nativeApp';
 import { useAuth } from '../context/AuthContext';
 import { RichText } from '../components/RichTextEditor';
 import useFaceMonitor from '../components/useFaceMonitor';
@@ -60,6 +61,8 @@ const CAMERA_STATUS = {
 // (Samsung Internet, MIUI, Opera, in-app WebViews…) don't report focus loss reliably
 // when an assistant/overlay opens. Desktop browsers are not restricted.
 function isAndroidNonChrome() {
+  // The Quizora Android app reports focus itself and blocks screen capture: allowed
+  if (inQuizoraApp()) return false;
   const ua = navigator.userAgent || '';
   if (!/Android/i.test(ua)) return false;
   const brands = navigator.userAgentData?.brands;
@@ -192,6 +195,9 @@ export default function Quiz() {
     })();
   }, []);
 
+  // Leaving the quiz page any other way (e.g. session replaced) also ends the app's lock-down
+  useEffect(() => () => endAppExam(), []);
+
   // -------- Finish helpers --------
   const finish = useCallback(async (aborted, autoSubmitted = false) => {
     if (finishedRef.current) return;
@@ -203,6 +209,7 @@ export default function Quiz() {
       exitFullscreen?.call(document).catch?.(() => {});
     }
     stopCamera();
+    endAppExam(); // Android app: unpin and show the system bars again
 
     try {
       await api.post('/students/quiz/finish', { aborted, autoSubmitted });
@@ -378,7 +385,7 @@ export default function Quiz() {
     const onCameraEnded = async () => {
       if (finishedRef.current) return;
       // Backgrounded (home button / call): the camera is restarted when the student returns.
-      if (document.hidden || awayRef.current.away) return;
+      if (pageHidden() || awayRef.current.away) return;
       // Try to switch it back on; only a camera that stays off is a violation.
       if (!(await restartCamera())) handleViolation('camera-disabled');
     };
@@ -416,12 +423,12 @@ export default function Quiz() {
         pending = null;
         return;
       }
-      if (p.hidden || document.hidden) {
+      if (p.hidden || pageHidden()) {
         pending = null;
         handleViolation('tab-switch');
         return;
       }
-      if (p.blurred && (p.waited || !document.hasFocus())) {
+      if (p.blurred && (p.waited || !pageHasFocus())) {
         // Visible but unfocused for 0.7 s. On a phone, wait a bit more for a late "hidden".
         if (mobile && !p.waited) {
           p.waited = true;
@@ -461,7 +468,7 @@ export default function Quiz() {
     const checkBack = () => {
       const a = awayRef.current;
       if (!a.away || finishedRef.current) return;
-      if (document.hidden || !document.hasFocus()) return;
+      if (pageHidden() || !pageHasFocus()) return;
       const canFullscreen = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
       if (enteredFullscreenRef.current && canFullscreen && !getFullscreenElement()) return;
       a.away = false;
@@ -493,7 +500,7 @@ export default function Quiz() {
     };
 
     const onVisibilityChange = () => {
-      if (document.hidden) {
+      if (pageHidden()) {
         relabelAsTabSwitch();
         note('hidden');
       } else {
@@ -527,7 +534,7 @@ export default function Quiz() {
     // Backup check: some phones/overlays never fire 'blur', so poll focus directly.
     const pollId = setInterval(() => {
       if (suppressBlurRef.current) return;
-      const focused = document.hasFocus();
+      const focused = pageHasFocus();
       if (!focused && !lost) onBlur();
       else if (focused && lost) onFocus();
       else checkBack();
@@ -538,7 +545,7 @@ export default function Quiz() {
     window.addEventListener('focus', onFocus);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('webkitfullscreenchange', onFullscreenChange);
-    if (!document.hasFocus()) onBlur();
+    if (!pageHasFocus()) onBlur();
     return () => {
       if (pending) clearTimeout(pending.timer);
       pending = null;
@@ -640,6 +647,14 @@ export default function Quiz() {
         setCameraError('Camera access is required to start this proctored test. Allow camera access and try again.');
         return;
       }
+    }
+
+    // In the Android app: the app pins itself and hides the system bars instead of
+    // browser fullscreen. Wait until it has, so its pinning prompt isn't a warning.
+    if (inQuizoraApp()) {
+      await startAppExam();
+      await beginTest();
+      return;
     }
 
     const el = document.documentElement;

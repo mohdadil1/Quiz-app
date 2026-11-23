@@ -180,6 +180,10 @@ Click **Profile** in the sidebar (or your picture at the top of it) to set your 
 
 ---
 
+## Android app
+
+For proctored tests, students can use the **Quizora Android app** instead of Chrome. It opens the same website, but it blocks screenshots, screen recording and assistants that read the screen (Circle to Search, Gemini). During a test it pins itself so students can't switch apps. Download the APK from the [android-latest release](https://github.com/mohdadil1/Quiz-app/releases/tag/android-latest). How it works, updates and signing are covered in [android/README.md](android/README.md).
+
 ## Developer guide
 
 ### Tech stack

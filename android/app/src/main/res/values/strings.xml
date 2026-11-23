@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Quizora</string>
+    <string name="camera_needed">Camera access is needed for proctored tests. Allow it in Settings → Apps → Quizora → Permissions.</string>
+    <string name="exam_locked">The test is in progress. Finish or submit it to leave.</string>
+</resources>

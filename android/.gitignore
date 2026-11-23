@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+# Signing keys never go in git — see android/README.md
+*.jks
+*.keystore
+keystore.properties
