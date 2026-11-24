@@ -22,8 +22,17 @@ const { typeOf, gradeAnswer, optionLetters, describeAnswer, describeCorrect } = 
  * student is taking. We return a JWT that embeds the testStudent id so the
  * rest of the quiz flow doesn't need the password again.
  */
+// Text copied from a printed page or PDF often carries stray spaces, line breaks,
+// non-breaking spaces or zero-width characters. Generated passwords are alphanumeric
+// only, so all of that can be dropped; the USN loses invisible characters and edge spaces.
+const INVISIBLE = /[\u00AD\u200B-\u200F\u2060\uFEFF]/g;
+const cleanPassword = (v) => String(v || '').replace(INVISIBLE, '').replace(/\s+/g, '');
+const cleanRollno = (v) => String(v || '').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+
 exports.login = async (req, res) => {
-  const { rollno, password, name, deviceInfo } = req.body;
+  const { name, deviceInfo } = req.body;
+  const rollno = cleanRollno(req.body.rollno);
+  const password = cleanPassword(req.body.password);
   const deviceId = typeof req.body.deviceId === 'string' ? req.body.deviceId.slice(0, 100) : '';
   if (!rollno || !password) {
     return res.status(400).json({ message: 'rollno and password required' });
