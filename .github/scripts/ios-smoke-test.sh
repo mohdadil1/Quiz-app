@@ -24,8 +24,16 @@ note "Installed on $(xcrun simctl list devices | grep "$DEVICE" | sed 's/ (.*//;
 xcrun simctl launch "$DEVICE" com.quizora.app || bad "App did not launch"
 sleep 25
 xcrun simctl io "$DEVICE" screenshot ios-smoke.png >/dev/null 2>&1 || true
-if xcrun simctl spawn "$DEVICE" launchctl list | grep -q "com.quizora.app"; then
-  note "App is still running after 25 seconds"
+xcrun simctl spawn "$DEVICE" launchctl list | grep -q "com.quizora.app" \
+  || bad "App stopped (crashed?) after launch"
+note "App is still running after 25 seconds"
+
+# The debug build logs each page it finishes loading
+LOG=$(xcrun simctl spawn "$DEVICE" log show --last 3m --style compact \
+  --predicate 'eventMessage CONTAINS "QuizoraSmoke"' 2>/dev/null)
+echo "$LOG" | grep QuizoraSmoke || true
+if echo "$LOG" | grep -q "QuizoraSmoke loaded https://"; then
+  note "Quizora site loaded: $(echo "$LOG" | grep -o 'loaded https://.*' | tail -1)"
 else
-  bad "App stopped (crashed?) after launch"
+  bad "Quizora site did not load: $(echo "$LOG" | grep -o 'failed .*' | tail -1)"
 fi

@@ -354,7 +354,18 @@ extension WebViewController: WKNavigationDelegate {
         if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return }
         if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return }
         let failed = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        #if DEBUG
+        NSLog("QuizoraSmoke failed %@", nsError.localizedDescription)
+        #endif
         showOfflinePage(failedURL: failed)
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        #if DEBUG
+        // Read by .github/scripts/ios-smoke-test.sh
+        NSLog("QuizoraSmoke loaded %@ title=%@ shield=%@", webView.url?.absoluteString ?? "-",
+              webView.title ?? "-", CaptureShield.isProtected(shield) ? "on" : "off")
+        #endif
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
