@@ -10,6 +10,7 @@ router.get('/:id', ctrl.getTest);
 router.put('/:id', ctrl.updateTest);
 router.delete('/:id', ctrl.deleteTest);
 router.post('/:id/complete', ctrl.completeTest);
+router.post('/:id/retake', ctrl.retakeTest);
 router.post('/:id/guest-student', ctrl.addGuestStudent);
 router.get('/:id/credentials', ctrl.listCredentials);
 router.post('/:id/access-code', ctrl.regenerateAccessCode);

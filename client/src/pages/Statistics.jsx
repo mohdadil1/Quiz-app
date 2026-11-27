@@ -7,6 +7,7 @@ export default function Statistics() {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
+  const [retakingId, setRetakingId] = useState(null);
   const [msg, setMsg] = useState(null);
   const navigate = useNavigate();
 
@@ -34,6 +35,22 @@ export default function Statistics() {
     }
   };
 
+  // Retake makes a fresh copy of the test (same questions, settings and students, new
+  // access code); this test and its results are kept
+  const handleRetake = async (e, t) => {
+    e.stopPropagation();
+    if (!confirm(`Retake "${t.name}"?\n\nA new test is made with the same questions, settings and students, and its own new access code. It starts as PENDING so you can check it before starting. This test and its results are kept.`)) return;
+    setMsg(null);
+    setRetakingId(t._id);
+    try {
+      const { data } = await api.post(`/tests/${t._id}/retake`);
+      navigate(`/admin/tests/${data._id}`);
+    } catch (err) {
+      setMsg({ type: 'error', text: err?.response?.data?.message || 'Failed to create the retake' });
+      setRetakingId(null);
+    }
+  };
+
   return (
     <TeacherLayout title="Statistics" showBack>
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
@@ -57,6 +74,13 @@ export default function Statistics() {
                   </div>
                   <div className="text-right text-muted flex flex-gap" style={{ alignItems: 'center' }}>
                     <span>{new Date(t.date).toLocaleDateString()}</span>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      disabled={retakingId === t._id}
+                      onClick={(e) => handleRetake(e, t)}
+                    >
+                      {retakingId === t._id ? 'Creating…' : 'Retake'}
+                    </button>
                     <button
                       className="btn btn-danger btn-sm"
                       disabled={deletingId === t._id}

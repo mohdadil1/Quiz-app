@@ -135,6 +135,8 @@ When everyone has finished, click **Mark Completed**.
 
 Go to **Statistics** and pick a completed test.
 
+To run a finished test again, click **Retake** next to it. This makes a new test named like "Unit Test (Retake)". It has the same questions and settings, the class's current students plus any guest students, and its own new access code. The new test starts as `PENDING` with no schedule, so you can check it and then start it. The original test and its results stay in Statistics.
+
 ![Statistics](docs/screenshots/statistics.png)
 
 **Test Statistics** shows each student's score, whether they submitted (or were auto-submitted) and their violations. **Print** prints the #, USN, Name and Score columns.

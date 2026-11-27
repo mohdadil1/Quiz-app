@@ -154,6 +154,69 @@ exports.createTest = async (req, res) => {
   res.status(201).json(test);
 };
 
+// POST /api/tests/:id/retake — run a test again. Makes a fresh copy with the same questions
+// and settings, its own new access code and no results yet; the original test and its
+// results stay as they are. Enrols the class's current students plus the original
+// test's guest students. The copy starts PENDING with no schedule, so the teacher
+// decides when it opens.
+exports.retakeTest = async (req, res) => {
+  const original = await Test.findById(req.params.id);
+  if (!original) return res.status(404).json({ message: 'Not found' });
+  if (String(original.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+
+  const baseName = original.name.replace(/ \(Retake( \d+)?\)$/, '');
+  const retakes = await Test.countDocuments({
+    teacher: original.teacher,
+    name: { $regex: `^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(Retake( \\d+)?\\)$` }
+  });
+
+  const copy = new Test({
+    teacher: original.teacher,
+    name: retakes ? `${baseName} (Retake ${retakes + 1})` : `${baseName} (Retake)`,
+    subject: original.subject,
+    date: new Date(),
+    totalQuestions: original.totalQuestions,
+    class: original.class,
+    status: 'PENDING',
+    mode: original.mode,
+    webcamProctoring: original.webcamProctoring,
+    timingMode: original.timingMode,
+    totalTimeMinutes: original.totalTimeMinutes,
+    shuffle: original.shuffle
+  });
+  await copy.assignAccessCode(); // also saves the copy
+
+  // Same questions, with fresh correct/wrong counts. Pictures are shared by key; an image
+  // is only deleted once no question in any test uses it.
+  const questions = await Question.find({ test: original._id }).sort({ createdAt: 1 }).lean();
+  if (questions.length) {
+    const base = Date.now();
+    await Question.insertMany(questions.map(({ _id, createdAt, updatedAt, __v, ...q }, i) => ({
+      ...q,
+      test: copy._id,
+      correctCount: 0,
+      wrongCount: 0,
+      // keep the original order (questions are listed by createdAt)
+      createdAt: new Date(base + i),
+      updatedAt: new Date(base + i)
+    })), { timestamps: false });
+  }
+
+  const [classStudents, originalEntries] = await Promise.all([
+    StudentRecord.find({ class: original.class }).select('_id'),
+    TestStudent.find({ test: original._id }).populate('student', 'class')
+  ]);
+  const guestIds = originalEntries
+    .filter((ts) => ts.student && ts.student.class == null)
+    .map((ts) => ts.student._id);
+  const studentIds = [...new Set([...classStudents.map((s) => String(s._id)), ...guestIds.map(String)])];
+  if (studentIds.length) {
+    await TestStudent.insertMany(studentIds.map((student) => ({ test: copy._id, student })));
+  }
+
+  res.status(201).json(copy);
+};
+
 // PUT /api/tests/:id — update general settings
 exports.updateTest = async (req, res) => {
   const test = await Test.findById(req.params.id);
