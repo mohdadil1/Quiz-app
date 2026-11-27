@@ -14,6 +14,15 @@ export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} })
   const [editing, setEditing] = useState(null); // { classId, id, rollno, name }
   const [busyId, setBusyId] = useState(null); // student being saved or deleted
   const [notice, setNotice] = useState('');
+  // Classes start folded; ids of the ones the teacher opened
+  const [openIds, setOpenIds] = useState(() => new Set());
+  const toggleOpen = (id) => setOpenIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allOpen = data.length > 0 && data.every((c) => openIds.has(c._id));
+  const toggleAll = () => setOpenIds(allOpen ? new Set() : new Set(data.map((c) => c._id)));
 
   const setStudents = (classId, update) => setData((prev) => prev.map((c) => (
     c._id === classId ? { ...c, students: update(c.students) } : c
@@ -85,7 +94,14 @@ export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} })
 
   return (
     <section className="class-list">
-      <h2 className="section-title">Classes and Students</h2>
+      <div className="class-list-head">
+        <h2 className="section-title">Classes and Students</h2>
+        {data.length > 1 && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={toggleAll}>
+            {allOpen ? 'Collapse all' : 'Expand all'}
+          </button>
+        )}
+      </div>
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
       {loading ? (
@@ -95,12 +111,23 @@ export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} })
           <div className="card-body"><div className="empty-state"><h5>No classes yet</h5></div></div>
         </div>
       ) : (
-        data.map((c) => (
-          <div key={c._id} className="card">
-            <div className="card-header">
-              <h3>{c.name}</h3>
+        data.map((c) => {
+          const open = openIds.has(c._id);
+          return (
+          <div key={c._id} className={`card class-card ${open ? 'is-open' : ''}`}>
+            <div className="card-header class-card-header">
+              <button
+                type="button"
+                className="class-card-toggle"
+                aria-expanded={open}
+                aria-controls={`class-${c._id}`}
+                onClick={() => toggleOpen(c._id)}
+              >
+                <span className="class-card-chevron" aria-hidden="true">▸</span>
+                <h3>{c.name}</h3>
+                <span className="class-card-count">{c.students.length} {c.students.length === 1 ? 'student' : 'students'}</span>
+              </button>
               <div className="flex flex-gap" style={{ alignItems: 'center' }}>
-                <span className="text-muted">{c.students.length} students</span>
                 <button
                   className="btn btn-danger btn-sm"
                   disabled={deletingId === c._id}
@@ -110,7 +137,8 @@ export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} })
                 </button>
               </div>
             </div>
-            <div className="card-body">
+            {open && (
+            <div className="card-body" id={`class-${c._id}`}>
               {c.students.length === 0 ? (
                 <div className="text-muted">No students</div>
               ) : (
@@ -190,8 +218,10 @@ export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} })
                 </div>
               )}
             </div>
+            )}
           </div>
-        ))
+          );
+        })
       )}
     </section>
   );

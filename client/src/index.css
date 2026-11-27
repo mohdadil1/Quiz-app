@@ -1955,3 +1955,37 @@ body.student-theme {
 .class-list .class-list-actions { width: 1%; white-space: nowrap; }
 .class-list tr.is-editing td { background: var(--primary-light); }
 .class-list .form-control-sm { padding: 4px 8px; font-size: 0.9rem; min-width: 120px; }
+
+/* Class list: each class folds up to its header */
+.class-list-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.class-list-head .section-title { margin: 0; }
+.class-card-header { gap: 12px; }
+.class-card:not(.is-open) .class-card-header { border-bottom: 0; }
+.class-card-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.class-card-toggle h3 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.class-card-toggle:hover h3 { color: var(--primary); }
+.class-card-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: 4px; border-radius: 4px; }
+.class-card-chevron { display: inline-block; color: var(--text-muted); transition: transform 0.15s; }
+.class-card.is-open .class-card-chevron { transform: rotate(90deg); }
+.class-card-count {
+  flex: none;
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
