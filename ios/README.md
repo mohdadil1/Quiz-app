@@ -104,6 +104,27 @@ Without it the app still works; leaving the test counts as a warning, as in Safa
 - Camera access for webcam proctoring, `confirm()` dialogs, and downloads (results
   spreadsheets open the share sheet) work as in Safari.
 
+## Trying it on your own iPhone without a paid account (7 days)
+
+GitHub also builds an **unsigned IPA** on every push to `main` and publishes it on the
+**ios-unsigned-latest** release:
+`https://github.com/mohdadil1/Quiz-app/releases/tag/ios-unsigned-latest`.
+An iPhone only runs apps signed for it, so sign it with your free Apple ID on a Windows
+PC or Mac:
+
+1. Install **Sideloadly** (<https://sideloadly.io>) on the computer. On Windows, also
+   install iTunes and iCloud from Apple's website (not the Microsoft Store).
+2. Connect the iPhone with a cable and tap **Trust** on the phone.
+3. Drag the `.ipa` into Sideloadly, type your Apple ID and press **Start**. Sideloadly
+   asks for the Apple ID password to get a free signing certificate from Apple; you can
+   use a spare Apple ID for this.
+4. On the iPhone: **Settings → General → VPN & Device Management** → your Apple ID →
+   **Trust**. On iOS 16 or newer, also turn on **Settings → Privacy & Security →
+   Developer Mode** and restart when asked.
+
+The app stops opening after 7 days; repeat step 3 to renew it. A free Apple ID can have
+3 such apps installed. Assessment mode isn't available in these builds.
+
 ## Building on a Mac
 
 ```sh

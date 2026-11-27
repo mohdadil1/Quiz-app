@@ -12,6 +12,9 @@ on:
     paths: ['ios/**', '.github/workflows/ios.yml', '.github/scripts/ios-smoke-test.sh']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   simulator:
     runs-on: macos-15
@@ -42,6 +45,48 @@ jobs:
           name: ios-simulator-screenshot
           path: ios-smoke.png
           if-no-files-found: ignore
+
+  # An unsigned IPA for trying the app on your own iPhone without a paid Apple account:
+  # sign it with your Apple ID using Sideloadly or AltStore (see ios/README.md). Apps signed
+  # with a free Apple ID run for 7 days. Published on the "ios-unsigned-latest" release.
+  unsigned-ipa:
+    needs: simulator
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the unsigned IPA
+        working-directory: ios
+        run: |
+          set -eo pipefail
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          xcodegen generate
+          xcodebuild -project Quizora.xcodeproj -scheme Quizora -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -n 40
+          mkdir -p Payload ../dist
+          cp -R build/Build/Products/Release-iphoneos/Quizora.app Payload/
+          zip -qry "../dist/Quizora-1.0.${{ github.run_number }}-unsigned.ipa" Payload
+          ls -l ../dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quizora-ios-unsigned-1.0.${{ github.run_number }}
+          path: dist/*.ipa
+          if-no-files-found: error
+
+      - name: Publish on the ios-unsigned-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ios-unsigned-latest --yes --cleanup-tag || true
+          gh release create ios-unsigned-latest dist/*.ipa --prerelease \
+            --title "Quizora iOS app 1.0.${{ github.run_number }} (unsigned, for testing)" \
+            --notes "Unsigned build for testing on your own iPhone. Sign and install it with Sideloadly or AltStore using your Apple ID; with a free Apple ID it runs for 7 days. Students should use TestFlight instead (see ios/README.md). Built from ${{ github.sha }}." \
+            --target "${{ github.sha }}"
 
   testflight:
     needs: simulator
