@@ -1989,3 +1989,21 @@ body.student-theme {
   font-size: 0.85rem;
   font-weight: 600;
 }
+
+/* Student's own score after submitting (finished screen and dashboard) */
+.score-card {
+  margin: 20px auto 8px;
+  max-width: 320px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+.score-card-label { font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.score-card-value { font-size: 2.6rem; font-weight: 700; line-height: 1.15; margin: 4px 0 12px; color: var(--text); font-variant-numeric: tabular-nums; }
+.score-card-total { font-size: 1.3rem; font-weight: 600; color: var(--text-muted); }
+.score-card-meter { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.score-card-meter span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.score-card-details { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 0.9rem; color: var(--text-muted); }
+.score-card-details strong { color: var(--text); }

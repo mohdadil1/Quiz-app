@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import ScoreCard from '../components/ScoreCard';
 
 const REDIRECT_SECONDS = 5;
+// Longer when there is a score to read
+const REDIRECT_SECONDS_WITH_SCORE = 20;
 
 // What to tell the student for each way a test can end (status comes from Quiz.finish)
 function describe(status) {
@@ -11,14 +14,15 @@ function describe(status) {
   if (/aborted/i.test(status)) {
     return { tone: 'warning', icon: '■', title: 'Test ended', text: 'You ended the test early. Your answers so far have been saved.' };
   }
-  return { tone: 'success', icon: '✓', title: 'Test submitted', text: 'Well done! Your answers have been saved. Your teacher will share the results.' };
+  return { tone: 'success', icon: '✓', title: 'Test submitted', text: 'Well done! Your answers have been saved.' };
 }
 
 export default function TestFinished() {
   const location = useLocation();
   const navigate = useNavigate();
   const { tone, icon, title, text } = describe(location.state?.status || 'Completed');
-  const [secondsLeft, setSecondsLeft] = useState(REDIRECT_SECONDS);
+  const result = location.state?.result || null;
+  const [secondsLeft, setSecondsLeft] = useState(result ? REDIRECT_SECONDS_WITH_SCORE : REDIRECT_SECONDS);
 
   useEffect(() => {
     if (secondsLeft <= 0) {
@@ -35,6 +39,7 @@ export default function TestFinished() {
         <div className={`finish-icon finish-icon--${tone}`} aria-hidden="true">{icon}</div>
         <h1>{title}</h1>
         <p className="text-muted">{text}</p>
+        <ScoreCard result={result} />
         <p className="finish-redirect">
           Returning to the login page in <strong>{secondsLeft}s</strong>
         </p>

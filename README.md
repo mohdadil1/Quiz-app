@@ -179,6 +179,7 @@ Click **Profile** in the sidebar (or your picture at the top of it) to set your 
 2. Wait until your teacher starts the test (status `RUNNING`), then click **Start Test**. For a proctored test, allow camera access when the browser asks.
 3. Answer each question before the timer runs out (it counts down either per question or for the whole test, as your teacher chose). You can't go back to a previous question; in a whole-test timer you can **Skip** one.
 4. Stay in fullscreen, don't switch tabs, keep your face visible and look at the screen. **3 warnings = the test is submitted automatically.**
+5. When the test is submitted, you see your own score (marks, percentage and how many answers were right). You only see it after submitting, never during the test, and only for your own test. Log in again with the same USN and code to see it later.
 
 ---
 

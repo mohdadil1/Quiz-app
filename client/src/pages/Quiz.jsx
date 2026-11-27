@@ -211,8 +211,10 @@ export default function Quiz() {
     stopCamera();
     endAppExam(); // Android app: unpin and show the system bars again
 
+    let result = null;
     try {
-      await api.post('/students/quiz/finish', { aborted, autoSubmitted });
+      const { data } = await api.post('/students/quiz/finish', { aborted, autoSubmitted });
+      result = data?.result || null;
     } catch (e) {
       console.error(e);
     }
@@ -221,7 +223,7 @@ export default function Quiz() {
     } else {
       logout();
       navigate('/student/finished', {
-        state: { status: autoSubmitted ? 'Auto-submitted (too many violations)' : aborted ? 'Aborted' : 'Completed' }
+        state: { status: autoSubmitted ? 'Auto-submitted (too many violations)' : aborted ? 'Aborted' : 'Completed', result }
       });
     }
   }, [logout, navigate, isMock, stopCamera]);

@@ -4,6 +4,7 @@ import api from '../api/client';
 import { formatWhen } from '../components/TestScheduleFields';
 import usePolling from '../components/usePolling';
 import { useAuth } from '../context/AuthContext';
+import ScoreCard from '../components/ScoreCard';
 const PracticeBanner = React.lazy(() => import('../components/PracticeBanner'));
 
 export default function StudentDashboard() {
@@ -114,8 +115,9 @@ export default function StudentDashboard() {
                 <p className="text-muted">
                   Your answers for <strong>{info.testName}</strong> have been submitted
                   {info.autoSubmitted ? ' (automatically, after too many warnings)' : ''}.
-                  {!isMock && ' You can’t take it again — your teacher will share the results.'}
+                  {!isMock && ' You can’t take it again.'}
                 </p>
+                {!isMock && <ScoreCard result={info.result} />}
                 {isMock && (
                   <button
                     className="btn btn-primary btn-block btn-lg mt-4"

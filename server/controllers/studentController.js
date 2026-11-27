@@ -140,6 +140,23 @@ exports.login = async (req, res) => {
   });
 };
 
+// The student's own result for a standard test. Only sent once they have submitted, so a
+// student never sees a score (or how many answers were right) while the test is going on.
+async function scoreSummary(ts) {
+  const [questions, correctAnswers] = await Promise.all([
+    Question.find({ test: ts.test._id }).select('score').lean(),
+    StudentAnswer.countDocuments({ testStudent: ts._id, isCorrect: true })
+  ]);
+  const totalMarks = questions.reduce((sum, q) => sum + (q.score || 0), 0);
+  return {
+    score: ts.score || 0,
+    totalMarks,
+    correctAnswers,
+    totalQuestions: questions.length,
+    percentage: totalMarks ? Math.round(((ts.score || 0) / totalMarks) * 1000) / 10 : 0
+  };
+}
+
 /**
  * GET /api/students/dashboard
  * Returns the current RUNNING test for this student (if any).
@@ -153,7 +170,10 @@ exports.dashboard = async (req, res) => {
   const running = ts.test.status === 'RUNNING';
   // For MOCK tests, show submitted if completedOnce (even if currently submitted=false for retakes)
   const submitted = ts.test.mode === 'MOCK' ? ts.completedOnce : ts.submitted;
+  // Standard tests: the score appears only after the student has submitted
+  const result = ts.test.mode !== 'MOCK' && ts.submitted ? await scoreSummary(ts) : null;
   res.json({
+    result,
     testId: ts.test._id,
     testName: ts.test.name,
     subject: ts.test.subject,
@@ -353,7 +373,7 @@ exports.finish = async (req, res) => {
   if (!ts) return res.status(404).json({ message: 'Not found' });
   // Already submitted (e.g. logged back in afterwards): keep the original result as it is
   if (ts.submitted && ts.test.mode !== 'MOCK') {
-    return res.json({ ok: true, alreadySubmitted: true, score: ts.score });
+    return res.json({ ok: true, alreadySubmitted: true, score: ts.score, result: await scoreSummary(ts) });
   }
   if (ts.test.mode !== 'MOCK') {
     ts.submitted = true;
@@ -370,7 +390,12 @@ exports.finish = async (req, res) => {
   ts.active = false;
   if (req.body.autoSubmitted && ts.test.mode !== 'MOCK') ts.autoSubmitted = true;
   await ts.save();
-  res.json({ ok: true, aborted: !!req.body.aborted, score: ts.score });
+  res.json({
+    ok: true,
+    aborted: !!req.body.aborted,
+    score: ts.score,
+    result: ts.test.mode !== 'MOCK' ? await scoreSummary(ts) : null
+  });
 };
 
 /**
