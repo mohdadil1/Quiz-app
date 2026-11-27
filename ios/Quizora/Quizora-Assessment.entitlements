@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Automatic Assessment Configuration. Used only when Apple has granted it to your
+	     developer account and the IOS_ASSESSMENT_MODE repository variable is "true". -->
+	<key>com.apple.developer.automatic-assessment-configuration</key>
+	<true/>
+</dict>
+</plist>

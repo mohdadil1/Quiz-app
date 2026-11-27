@@ -1,4 +1,5 @@
-// Talking to the Quizora Android app (see android/), when the site runs inside it.
+// Talking to the Quizora Android and iOS apps (see android/ and ios/), when the site runs
+// inside one of them.
 // In a normal browser every function here falls back to the browser's own behaviour.
 
 export const inQuizoraApp = () => typeof window !== 'undefined' && !!window.QuizoraApp;
@@ -9,9 +10,10 @@ export const pageHidden = () => document.hidden || window.__quizoraHidden === tr
 export const pageHasFocus = () => document.hasFocus() && window.__quizoraFocus !== false;
 
 /**
- * Ask the app to lock down for a test: pin itself, hide the system bars, keep the
- * screen on. Resolves with { pinned } once Android's pinning prompt (if any) has
- * closed, so that prompt doesn't count as leaving the test.
+ * Ask the app to lock down for a test: pin itself (Android screen pinning, or iOS
+ * assessment mode where available), hide the system bars, keep the screen on. Resolves
+ * with { pinned } once the system's prompt or transition (if any) has finished, so it
+ * doesn't count as leaving the test.
  */
 export function startAppExam(timeoutMs = 15000) {
   return new Promise((resolve) => {

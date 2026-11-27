@@ -533,7 +533,9 @@ const VIOLATION_LABELS = {
   'camera-disabled': 'Camera disabled',
   'looking-away': 'Looked away from the screen',
   'face-not-visible': 'Face not visible',
-  'multiple-faces': 'More than one face'
+  'multiple-faces': 'More than one face',
+  'screenshot': 'Took a screenshot',
+  'screen-recording': 'Recorded or mirrored the screen'
 };
 
 // Rich-text question titles → plain text for spreadsheet cells
