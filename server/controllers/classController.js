@@ -1,6 +1,8 @@
 const Class = require('../models/Class');
 const StudentRecord = require('../models/StudentRecord');
 const Test = require('../models/Test');
+const TestStudent = require('../models/TestStudent');
+const StudentAnswer = require('../models/StudentAnswer');
 
 // Sort USNs like "1AB21CS2" before "1AB21CS10"
 const USN_ORDER = { locale: 'en', numericOrdering: true };
@@ -114,6 +116,76 @@ exports.bulkAddStudents = async (req, res) => {
   if (docs.length) await StudentRecord.insertMany(docs, { ordered: false });
 
   res.status(201).json({ added: docs.length, skipped: existingSet.size });
+};
+
+// The student must be in one of this teacher's classes
+async function ownStudent(req) {
+  const cls = await ownClass(req.params.id, req);
+  if (!cls) return { error: [404, 'Class not found'] };
+  const student = await StudentRecord.findOne({ _id: req.params.studentId, class: cls._id });
+  if (!student) return { error: [404, 'Student not found in this class'] };
+  return { cls, student };
+}
+
+// PUT /api/classes/:id/students/:studentId  { rollno?, name? } — fix a student's USN or name.
+// Their test entries point at this record, so every test shows the change too.
+exports.updateClassStudent = async (req, res) => {
+  const { student, error } = await ownStudent(req);
+  if (error) return res.status(error[0]).json({ message: error[1] });
+
+  const { rollno, name } = req.body;
+  if (rollno !== undefined) {
+    const usn = String(rollno).trim().toUpperCase();
+    if (!usn) return res.status(400).json({ message: 'USN cannot be empty' });
+    student.rollno = usn;
+  }
+  if (name !== undefined) student.name = String(name ?? '').trim() || null;
+
+  try {
+    await student.save();
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Another student in this class already has this USN' });
+    throw err;
+  }
+  res.json(student);
+};
+
+// DELETE /api/classes/:id/students/:studentId — remove a student from the class.
+// Their entries in tests they never started are removed with them. If they already took
+// a test, those results are kept: the record leaves the class but stays as a guest of
+// this teacher, so scores and statistics still show their USN and name.
+exports.deleteClassStudent = async (req, res) => {
+  const { student, error } = await ownStudent(req);
+  if (error) return res.status(error[0]).json({ message: error[1] });
+
+  const entries = await TestStudent.find({ student: student._id }).populate('test', 'status');
+  const hasResults = (ts) => ts.started || ts.submitted || ts.completedOnce || ts.startedAt
+    || (ts.score || 0) > 0 || ts.test?.status === 'COMPLETED';
+  const unused = entries.filter((ts) => !hasResults(ts)).map((ts) => ts._id);
+  const keep = entries.length - unused.length;
+
+  if (keep > 0) {
+    // Keep the record for its results, as a guest (no class) of this teacher
+    student.class = null;
+    student.teacher = req.user.id;
+    try {
+      await student.save();
+    } catch (err) {
+      if (err.code === 11000) {
+        return res.status(409).json({
+          message: 'This USN is also a guest student in one of your tests, so it cannot be removed while it has test results. Delete those tests first.'
+        });
+      }
+      throw err;
+    }
+  }
+  if (unused.length) {
+    await StudentAnswer.deleteMany({ testStudent: { $in: unused } });
+    await TestStudent.deleteMany({ _id: { $in: unused } });
+  }
+  if (keep === 0) await student.deleteOne();
+
+  res.json({ ok: true, keptResults: keep, removedFromTests: unused.length });
 };
 
 // GET /api/classes/:id/students — list students in class

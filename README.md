@@ -114,7 +114,7 @@ The **Student Credentials** page shows the test's access code in large digits an
 
 - **Print** prints the access code with the USN and Name columns.
 - **Download CSV** saves the student list with violations.
-- **Edit** fixes a student's USN or name. **Delete** removes them from this test.
+- **Delete** removes a student from this test. To fix a student's USN or name, use **Edit** in the class list on **Add Class / Student**.
 - **Refresh** reloads the list while the test is running.
 
 ### 5. Run the test
@@ -158,7 +158,7 @@ To run a finished test again, click **Retake** next to it. This makes a new test
 
 ### 7. Manage your classes
 
-At the bottom of **Add Class / Student**, **Classes and Students** lists every class with its students, and updates as soon as you add students. Click the **USN** or **Name** header to sort (click again to reverse). **Delete Class** removes the class and its students; a class that is still used by a test can't be deleted until you delete those tests.
+At the bottom of **Add Class / Student**, **Classes and Students** lists every class with its students, and updates as soon as you add students. **Edit** fixes a student's USN or name (press Enter to save, Esc to cancel), and every test shows the change. **Delete** removes a student from the class and from tests they haven't started; results from tests they already took are kept. Click the **USN** or **Name** header to sort (click again to reverse). **Delete Class** removes the class and its students; a class that is still used by a test can't be deleted until you delete those tests.
 
 ![Classes and Students](docs/screenshots/view-data.png)
 

@@ -25,10 +25,6 @@ export default function StudentCredentials() {
   // Table, print and CSV all follow the chosen sort order
   const sortedRows = sortStudents(rows, sort);
   const [loading, setLoading] = useState(true);
-  const [editingStudentId, setEditingStudentId] = useState(null);
-  const [editRollno, setEditRollno] = useState('');
-  const [editName, setEditName] = useState('');
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [test, setTest] = useState(null);
 
@@ -158,34 +154,11 @@ export default function StudentCredentials() {
                 </thead>
                 <tbody>
                   {sortedRows.map((r, i) => {
-                    const isEditing = editingStudentId === r.studentId;
                     return (
                       <tr key={r.testStudentId || r.studentId || i}>
                         <td>{i + 1}</td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              className="form-control"
-                              value={editRollno}
-                              onChange={(e) => setEditRollno(e.target.value)}
-                            />
-                          ) : (
-                            r.rollno
-                          )}
-                        </td>
-                        <td>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              className="form-control"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                            />
-                          ) : (
-                            r.name || '-'
-                          )}
-                        </td>
+                        <td>{r.rollno}</td>
+                        <td>{r.name || '-'}</td>
                         <td>
                           <span className={`badge badge-${r.submitted ? 'completed' : r.active && r.started ? 'in-progress' : r.active ? 'logged-in' : 'pending'}`}>
                             {r.submitted ? 'Submitted' : r.active && r.started ? 'In Progress' : r.active ? 'Logged In' : 'Not started'}
@@ -193,73 +166,7 @@ export default function StudentCredentials() {
                         </td>
                         <td>{r.score}</td>
                         <td>
-                          {isEditing ? (
-                            <div className="flex flex-gap">
-                              <button
-                                className="btn btn-primary btn-sm"
-                                disabled={saving}
-                                onClick={async () => {
-                                  setError('');
-                                  setSaving(true);
-                                  try {
-                                    const { data } = await api.put(`/tests/${id}/students/${r.studentId}`, {
-                                      rollno: String(editRollno).trim() === '' ? undefined : String(editRollno).trim(),
-                                      name: editName.trim()
-                                    });
-                                    setRows(rows.map((row) => row.studentId === r.studentId ? {
-                                      ...row,
-                                      rollno: data.rollno,
-                                      name: data.name
-                                    } : row));
-                                    setEditingStudentId(null);
-                                  } catch (e) {
-                                    setError(e?.response?.data?.message || 'Failed to update student');
-                                  } finally {
-                                    setSaving(false);
-                                  }
-                                }}
-                              >
-                                Save
-                              </button>
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => setEditingStudentId(null)}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                className="btn btn-danger btn-sm"
-                                disabled={saving}
-                                onClick={async () => {
-                                  if (!confirm('Delete this student entry from the test?')) return;
-                                  setError('');
-                                  setSaving(true);
-                                  try {
-                                    await api.delete(`/tests/${id}/students/${r.testStudentId}`);
-                                    setRows(rows.filter((row) => row.testStudentId !== r.testStudentId));
-                                    setEditingStudentId(null);
-                                  } catch (e) {
-                                    setError(e?.response?.data?.message || 'Failed to delete student');
-                                  } finally {
-                                    setSaving(false);
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-gap">
-                              <button
-                                className="btn btn-secondary btn-sm"
-                                onClick={() => {
-                                  setEditingStudentId(r.studentId);
-                                  setEditRollno(r.rollno ?? '');
-                                  setEditName(r.name || '');
-                                }}
-                              >
-                                Edit
-                              </button>
+                          <div className="flex flex-gap">
                               {r.deviceLocked && (
                                 <button
                                   className="btn btn-secondary btn-sm"
@@ -295,8 +202,7 @@ export default function StudentCredentials() {
                               >
                                 Delete
                               </button>
-                            </div>
-                          )}
+                          </div>
                         </td>
                         <td>{r.violations || 0}</td>
                         <td>{(r.violationTypes || []).length ? r.violationTypes.map(describeViolation).join(', ') : '—'}</td>

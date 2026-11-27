@@ -10,5 +10,7 @@ router.delete('/:id', requireAuth('teacher'), ctrl.deleteClass);
 router.get('/:id/students', requireAuth('teacher'), ctrl.listStudentsInClass);
 router.post('/:id/students', requireAuth('teacher'), ctrl.addStudentToClass);
 router.post('/:id/students/bulk', requireAuth('teacher'), ctrl.bulkAddStudents);
+router.put('/:id/students/:studentId', requireAuth('teacher'), ctrl.updateClassStudent);
+router.delete('/:id/students/:studentId', requireAuth('teacher'), ctrl.deleteClassStudent);
 
 module.exports = router;

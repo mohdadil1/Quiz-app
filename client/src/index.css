@@ -1950,3 +1950,8 @@ body.student-theme {
 .past-row-meta { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .past-row-delete { flex: none; }
 .past-row-delete:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+/* Class list: inline edit of a student's USN / name */
+.class-list .class-list-actions { width: 1%; white-space: nowrap; }
+.class-list tr.is-editing td { background: var(--primary-light); }
+.class-list .form-control-sm { padding: 4px 8px; font-size: 0.9rem; min-width: 120px; }
