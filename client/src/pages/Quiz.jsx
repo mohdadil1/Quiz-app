@@ -37,7 +37,9 @@ const VIOLATION_MESSAGES = {
   'camera-disabled': 'Camera turned off. Keep your camera on.',
   'looking-away': 'Looking away detected. Keep looking at the screen.',
   'face-not-visible': 'Face not visible. Keep your face in front of the camera.',
-  'multiple-faces': 'Multiple faces detected. Only you may be in front of the camera.'
+  'multiple-faces': 'Multiple faces detected. Only you may be in front of the camera.',
+  'screenshot': 'Screenshot detected. Do not capture the test.',
+  'screen-recording': 'Screen recording or mirroring detected. Turn it off to continue the test.'
 };
 
 // Phones/tablets: a visible page losing focus there means something covered it (an assistant,
@@ -209,7 +211,7 @@ export default function Quiz() {
       exitFullscreen?.call(document).catch?.(() => {});
     }
     stopCamera();
-    endAppExam(); // Android app: unpin and show the system bars again
+    endAppExam(); // Quizora app: unlock and show the system bars again
 
     let result = null;
     try {
@@ -560,6 +562,18 @@ export default function Quiz() {
     };
   }, [isMock, started, handleViolation, webcamRequired, restartCamera]);
 
+  // -------- Anti-cheat: screenshots and screen recording (Quizora iOS app) --------
+  // iOS can't stop a screenshot, so the app reports it afterwards. (The Android app blocks
+  // capture outright and never sends this.)
+  useEffect(() => {
+    if (isMock || !started) return;
+    const onCapture = (e) => {
+      handleViolation(e.detail?.kind === 'recording' ? 'screen-recording' : 'screenshot');
+    };
+    window.addEventListener('quizora-screen-capture', onCapture);
+    return () => window.removeEventListener('quizora-screen-capture', onCapture);
+  }, [isMock, started, handleViolation]);
+
   // -------- Anti-cheat: block right-click, copy, devtools shortcuts --------
   useEffect(() => {
     if (isMock || !started) return;
@@ -651,7 +665,7 @@ export default function Quiz() {
       }
     }
 
-    // In the Android app: the app pins itself and hides the system bars instead of
+    // In the Android or iOS app: the app locks itself and hides the system bars instead of
     // browser fullscreen. Wait until it has, so its pinning prompt isn't a warning.
     if (inQuizoraApp()) {
       await startAppExam();

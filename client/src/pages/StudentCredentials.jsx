@@ -14,7 +14,9 @@ function describeViolation(type) {
     'camera-disabled': 'Camera was disabled or disconnected',
     'looking-away': 'Looked away from the screen',
     'face-not-visible': 'Face not visible to the camera',
-    'multiple-faces': 'More than one face in camera view'
+    'multiple-faces': 'More than one face in camera view',
+    'screenshot': 'Took a screenshot',
+    'screen-recording': 'Recorded or mirrored the screen'
   }[type] || type || 'Unknown violation';
 }
 

@@ -406,7 +406,7 @@ exports.finish = async (req, res) => {
  */
 const VIOLATION_TYPES = new Set([
   'tab-switch', 'assistant-opened', 'focus-lost', 'fullscreen-exit', 'second-device-login',
-  'camera-disabled', 'looking-away', 'face-not-visible', 'multiple-faces'
+  'camera-disabled', 'looking-away', 'face-not-visible', 'multiple-faces', 'screenshot', 'screen-recording'
 ]);
 // A warning first recorded as "left the screen" can turn out to be a tab switch once the
 // browser reports the page hidden (phones report that late). Only these corrections are allowed.
