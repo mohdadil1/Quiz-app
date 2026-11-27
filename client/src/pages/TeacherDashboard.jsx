@@ -75,6 +75,7 @@ export default function TeacherDashboard() {
                     <div className="item-meta">
                       <span><strong>Subject:</strong> {t.subject}</span>
                       <span><strong>Class:</strong> {t.class?.name || '—'}</span>
+                      {t.accessCode && <span><strong>Access code:</strong> <span className="access-code-inline">{t.accessCode}</span></span>}
                       {t.startAt && t.status === 'PENDING' && <span><strong>Opens:</strong> {formatWhen(t.startAt)}</span>}
                       {t.endAt && t.status !== 'COMPLETED' && <span><strong>Closes:</strong> {formatWhen(t.endAt)}</span>}
                     </div>

@@ -30,6 +30,11 @@ export default function StudentCredentials() {
   const [editName, setEditName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [test, setTest] = useState(null);
+
+  useEffect(() => {
+    api.get(`/tests/${id}`).then((r) => setTest(r.data)).catch(() => {});
+  }, [id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +70,8 @@ export default function StudentCredentials() {
   };
 
   const handleDownloadCSV = () => {
-    const header = 'USN,Name,Password,Violations,Violation Details\n';
-    const body = sortedRows.map((r) => `${r.rollno},${r.name || ''},${r.password},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
+    const header = 'USN,Name,Violations,Violation Details\n';
+    const body = sortedRows.map((r) => `${r.rollno},${r.name || ''},${r.violations || 0},"${(r.violationTypes || []).map(describeViolation).join('; ')}"`).join('\n');
     const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -101,9 +106,9 @@ export default function StudentCredentials() {
           .table tfoot { display: table-footer-group !important; }
           .table tr { page-break-inside: avoid !important; break-inside: avoid-column !important; }
           .table th, .table td { box-shadow: none !important; }
-          /* Print only the USN (2nd), Name (3rd) and Password (4th) columns */
-          .credentials-table th:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(4)),
-          .credentials-table td:not(:nth-child(2)):not(:nth-child(3)):not(:nth-child(4)) { display: none !important; }
+          /* Print the access code and only the USN (2nd) and Name (3rd) columns */
+          .credentials-table th:not(:nth-child(2)):not(:nth-child(3)),
+          .credentials-table td:not(:nth-child(2)):not(:nth-child(3)) { display: none !important; }
           .credentials-table th[aria-sort] span { display: none !important; }
         }
         .badge-in-progress {
@@ -116,9 +121,18 @@ export default function StudentCredentials() {
         }
       `}</style>
 
+      {test?.accessCode && (
+        <div className="card access-code-card">
+          <div className="card-body">
+            <div className="text-muted">{test.name} · students log in with their USN and this code</div>
+            <div className="access-code">{test.accessCode}</div>
+          </div>
+        </div>
+      )}
+
       <div className="card">
         <div className="card-header">
-          <h3>Login Credentials</h3>
+          <h3>Students</h3>
           <span className="text-muted">{rows.length} student(s)</span>
         </div>
         <div className="card-body">
@@ -135,7 +149,6 @@ export default function StudentCredentials() {
                     <th>#</th>
                     <SortHeader label="USN" sortKey="rollno" sort={sort} onSort={(k) => setSort(nextSort(sort, k))} />
                     <SortHeader label="Name" sortKey="name" sort={sort} onSort={(k) => setSort(nextSort(sort, k))} />
-                    <th>Password</th>
                     <th>Status</th>
                     <th>Score</th>
                     <th>Actions</th>
@@ -173,7 +186,6 @@ export default function StudentCredentials() {
                             r.name || '-'
                           )}
                         </td>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{r.password}</td>
                         <td>
                           <span className={`badge badge-${r.submitted ? 'completed' : r.active && r.started ? 'in-progress' : r.active ? 'logged-in' : 'pending'}`}>
                             {r.submitted ? 'Submitted' : r.active && r.started ? 'In Progress' : r.active ? 'Logged In' : 'Not started'}

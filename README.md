@@ -1,6 +1,6 @@
 # Quizora
 
-Quizora is an online quiz app for colleges. Teachers create classes and tests, students sign in with their USN and a one-time password, and the app proctors the test (fullscreen, tab-switch and webcam checks) and gives teachers per-student, per-question results.
+Quizora is an online quiz app for colleges. Teachers create classes and tests, students sign in with their USN and the test's 4-digit access code, and the app proctors the test (fullscreen, tab-switch and webcam checks) and gives teachers per-student, per-question results.
 
 - **Live app:** https://quiz-app-sigma-lemon-97.vercel.app
 - **Teacher panel:** https://quiz-app-sigma-lemon-97.vercel.app/admin
@@ -66,7 +66,7 @@ On the **Dashboard**, click **+ New Test**. Fill in the name, subject, date, num
 - **Shuffle questions and options for each student:** every student gets their own order of questions and of the four options, so neighbours can't copy by position. A student keeps the same order if they reconnect.
 - **Opens at / Closes at (optional):** schedule the test. At the opening time a `PENDING` test switches to `RUNNING` by itself, and at the closing time it is marked `COMPLETED`. Answers sent after the closing time are refused, and a total-time countdown never runs past it. Students waiting on the dashboard see when the test opens. You can still change the status by hand. To reopen a test that closed automatically, move the closing time later. Leave both empty to start and end the test yourself.
 
-Every student in the chosen class is enrolled automatically, each with their own password.
+Every student in the chosen class is enrolled automatically. The test also gets a random **4-digit access code**, shown only to you on the Dashboard, on **Test Details** and on **Student Credentials**. Every student uses the same code with their own USN, so you can write it on the board or say it out loud in the lab. If the code gets out, click **New code** on Test Details: students already logged in stay logged in, and new logins need the new code.
 
 Then open the test from the Dashboard to reach **Test Details**:
 
@@ -108,12 +108,12 @@ Go to **Get Student Data** and pick the test.
 
 ![Get Student Data](docs/screenshots/get-student-data.png)
 
-The **Student Credentials** page lists every student's USN, name and test password, plus their live status, score and any violations.
+The **Student Credentials** page shows the test's access code in large digits and lists every student's USN and name, plus their live status, score and any violations.
 
 ![Student Credentials](docs/screenshots/student-credentials.png)
 
-- **Print** prints only the USN, Name and Password columns — a sheet you can hand out for logging in.
-- **Download CSV** saves everything, including passwords, to hand out or keep.
+- **Print** prints the access code with the USN and Name columns.
+- **Download CSV** saves the student list with violations.
 - **Edit** fixes a student's USN or name. **Delete** removes them from this test.
 - **Refresh** reloads the list while the test is running.
 
@@ -170,7 +170,7 @@ Click **Profile** in the sidebar (or your picture at the top of it) to set your 
 
 ## Student guide
 
-1. Open the app's home page and enter your **USN**, your **name** and the **password** your teacher gave you.
+1. Open the app's home page and enter your **USN**, your **name** and the **4-digit access code** your teacher gives out for the test.
 
    ![Student login](docs/screenshots/student-login.png)
 
@@ -222,7 +222,7 @@ Run the server's unit tests (question grading and scheduling; no database needed
 
 **Question pictures** live in the `questionimages` collection and are served publicly from `GET /api/images/:key`. Each key is a random 128-bit id, so pictures can't be guessed before a test. Responses are cached for a year by browsers and Vercel's CDN, which is safe because a picture never changes under its key. Uploads are checked by their actual bytes, not the file name, and SVG is refused because it can contain scripts.
 
-**Rate limits:** to stop password guessing, the login and emailed-code endpoints are rate-limited (see `server/middleware/rateLimit.js`). A student is blocked for 15 minutes after 10 wrong passwords for the same USN. The limit is counted per IP *and* USN, so a whole exam hall behind one college IP isn't locked out by one student. Teacher logins work the same way per email, and verification codes can be requested 5 times an hour per email. The counters are kept in memory, so on Vercel each server instance counts separately; add a shared store (Redis or MongoDB) if you need one global limit.
+**Rate limits:** to stop code and password guessing, the login and emailed-code endpoints are rate-limited (see `server/middleware/rateLimit.js`). A student is blocked for 15 minutes after 10 wrong access codes for the same USN. The limit is counted per IP *and* USN, so a whole exam hall behind one college IP isn't locked out by one student. Teacher logins work the same way per email, and verification codes can be requested 5 times an hour per email. The counters are kept in memory, so on Vercel each server instance counts separately; add a shared store (Redis or MongoDB) if you need one global limit.
 
 > Change the seeded `admin` password (Profile → Change Password) before using it anywhere real.
 

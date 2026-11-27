@@ -15,30 +15,29 @@ function currentTestStudent(req) {
 const { typeOf, gradeAnswer, optionLetters, describeAnswer, describeCorrect } = require('../utils/questionTypes');
 
 /**
- * POST /api/students/login  { rollno, password }
+ * POST /api/students/login  { rollno, accessCode }
  *
- * The password is scoped per-test (randomly generated when the test is created),
- * so a login = (rollno, test password) uniquely identifies which test this
- * student is taking. We return a JWT that embeds the testStudent id so the
- * rest of the quiz flow doesn't need the password again.
+ * Every test has one 4-digit access code (made when the test is created, shown only to
+ * the teacher), so a login = (USN, access code) identifies which test this student is
+ * taking. We return a JWT that embeds the testStudent id so the rest of the quiz flow
+ * doesn't need the code again.
  */
-// Text copied from a printed page or PDF often carries stray spaces, line breaks,
-// non-breaking spaces or zero-width characters. Generated passwords are alphanumeric
-// only, so all of that can be dropped; the USN loses invisible characters and edge spaces.
+// The code is digits only, so anything else (spaces, invisible characters) is dropped;
+// the USN loses invisible characters and edge spaces.
 const INVISIBLE = /[\u00AD\u200B-\u200F\u2060\uFEFF]/g;
-const cleanPassword = (v) => String(v || '').replace(INVISIBLE, '').replace(/\s+/g, '');
+const cleanCode = (v) => String(v || '').replace(/\D/g, '');
 const cleanRollno = (v) => String(v || '').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
 
 exports.login = async (req, res) => {
   const { name, deviceInfo } = req.body;
   const rollno = cleanRollno(req.body.rollno);
-  const password = cleanPassword(req.body.password);
+  const accessCode = cleanCode(req.body.accessCode);
   const deviceId = typeof req.body.deviceId === 'string' ? req.body.deviceId.slice(0, 100) : '';
-  if (!rollno || !password) {
-    return res.status(400).json({ message: 'rollno and password required' });
+  if (!rollno || accessCode.length !== 4) {
+    return res.status(400).json({ message: 'USN and 4-digit access code required' });
   }
 
-  // USN + password identify the student (USN ignores case). The typed name is not checked —
+  // USN + access code identify the student (USN ignores case). The typed name is not checked —
   // it is only used as a display name when the record has none.
   const query = { rollno: String(rollno).trim().toUpperCase() };
 
@@ -48,10 +47,12 @@ exports.login = async (req, res) => {
     return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });
   }
 
-  // Find a matching TestStudent row for this student/password.
-  const ts = await TestStudent.findOne({
+  // Each test has its own unique code, so the code names exactly one test; the student
+  // must be enrolled in it.
+  const test = await Test.findOne({ accessCode }).select('_id').lean();
+  const ts = test && await TestStudent.findOne({
     student: { $in: studentRecords.map(s => s._id) },
-    password
+    test: test._id
   }).populate('test');
 
   if (!ts) return res.status(401).json({ message: 'STUDENT_RECORD_NOT_FOUND' });

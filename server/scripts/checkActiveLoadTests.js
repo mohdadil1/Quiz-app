@@ -41,7 +41,7 @@ async function main() {
       method: 'POST',
       body: JSON.stringify({
         rollno: student.rollno,
-        password: student.password,
+        accessCode: test.accessCode,
         deviceInfo: {
           userAgent: `load-test-${student.rollno}`,
           platform: 'load-test',

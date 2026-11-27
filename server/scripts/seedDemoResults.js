@@ -92,7 +92,6 @@ async function removeDemo() {
     const ts = await TestStudent.create({
       test: test._id,
       student: records[i]._id,
-      password: Math.random().toString(36).slice(2, 10),
       score,
       submitted: true,
       started: true,

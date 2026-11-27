@@ -81,14 +81,6 @@ async function deleteUnusedGuests(studentIds) {
   if (unused.length) await StudentRecord.deleteMany({ _id: { $in: unused }, class: null });
 }
 
-function randomPassword(length = 8) {
-  const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let out = '';
-  const bytes = crypto.randomBytes(length);
-  for (let i = 0; i < length; i++) out += chars[bytes[i] % chars.length];
-  return out;
-}
-
 // GET /api/tests?status=pending|running|completed|active
 // "active" = PENDING + RUNNING (what the teacher dashboard shows)
 exports.listTests = async (req, res) => {
@@ -106,6 +98,7 @@ exports.listTests = async (req, res) => {
     if (val) filter.status = val;
   }
   const tests = await Test.find(filter).populate('class', 'name').sort({ date: -1 });
+  await Promise.all(tests.map((t) => t.ensureAccessCode()));
   res.json(tests);
 };
 
@@ -115,6 +108,7 @@ exports.getTest = async (req, res) => {
   if (!test) return res.status(404).json({ message: 'Not found' });
   if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
   await test.applySchedule();
+  await test.ensureAccessCode();
 
   const questions = await Question.find({ test: test._id }).sort({ createdAt: 1 });
   res.json({ ...test.toObject(), questions });
@@ -145,14 +139,13 @@ exports.createTest = async (req, res) => {
   });
   const optionsError = applyTestOptions(test, req.body);
   if (optionsError) return res.status(400).json({ message: optionsError });
-  await test.save();
+  await test.assignAccessCode(); // also saves the test
 
   // Create per-test student rows for every student record in this class
   const students = await StudentRecord.find({ class: cls._id });
   const rows = students.map(s => ({
     test: test._id,
     student: s._id,
-    password: randomPassword(8),
     score: 0,
     submitted: false
   }));
@@ -248,13 +241,22 @@ exports.addGuestStudent = async (req, res) => {
 
   const ts = await TestStudent.create({
     test: test._id,
-    student: student._id,
-    password: randomPassword(8)
+    student: student._id
   });
   res.status(201).json({ student, testStudent: ts });
 };
 
-// GET /api/tests/:id/credentials — list of { rollno, password } for printing
+// POST /api/tests/:id/access-code — replace the test's access code (e.g. it leaked).
+// Students already logged in stay logged in; new logins need the new code.
+exports.regenerateAccessCode = async (req, res) => {
+  const test = await Test.findById(req.params.id);
+  if (!test) return res.status(404).json({ message: 'Not found' });
+  if (String(test.teacher) !== req.user.id) return res.status(403).json({ message: 'Forbidden' });
+  await test.assignAccessCode();
+  res.json({ accessCode: test.accessCode });
+};
+
+// GET /api/tests/:id/credentials — the test's students with their live status
 exports.listCredentials = async (req, res) => {
   const test = await Test.findById(req.params.id);
   if (!test) return res.status(404).json({ message: 'Not found' });
@@ -268,7 +270,6 @@ exports.listCredentials = async (req, res) => {
     studentId: r.student?._id,
     rollno: r.student?.rollno,
     name: r.student?.name,
-    password: r.password,
     score: r.score,
     submitted: r.submitted,
     active: r.active,

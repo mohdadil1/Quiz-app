@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
 
-// Pick a test to view its student credentials (USN, password, violations)
+// Pick a test to view its student credentials (USN, status, violations)
 export default function StudentData() {
   const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(true);

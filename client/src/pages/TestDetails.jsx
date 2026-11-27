@@ -161,12 +161,35 @@ export default function TestDetails() {
     }
   };
 
+  const newAccessCode = async () => {
+    if (!confirm('Make a new access code? The old code stops working for new logins. Students already logged in are not affected.')) return;
+    try {
+      const { data } = await api.post(`/tests/${id}/access-code`);
+      setTest((t) => ({ ...t, accessCode: data.accessCode }));
+      setMsg({ type: 'success', text: `New access code: ${data.accessCode}` });
+    } catch (e) {
+      setMsg({ type: 'error', text: 'Could not change the access code' });
+    }
+  };
+
   if (loading) return <TeacherLayout title="Test Details" showBack><div className="empty-state">Loading…</div></TeacherLayout>;
   if (!test) return <TeacherLayout title="Test Details" showBack><div className="empty-state">Not found</div></TeacherLayout>;
 
   return (
     <TeacherLayout title="Test Details" showBack>
       {msg && <div className={`alert alert-${msg.type}`}>{msg.text}</div>}
+
+      {test.accessCode && (
+        <div className="card access-code-card">
+          <div className="card-body access-code-row">
+            <div>
+              <div className="text-muted">Access code: students log in with their USN and this code</div>
+              <div className="access-code">{test.accessCode}</div>
+            </div>
+            <button type="button" className="btn btn-secondary" onClick={newAccessCode}>New code</button>
+          </div>
+        </div>
+      )}
 
       <div className="row row-2">
         {/* General settings */}

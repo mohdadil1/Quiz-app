@@ -17,7 +17,7 @@ export default function Statistics() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Deleting removes the test with its questions, student passwords and results
+  // Deleting removes the test with its questions, student entries and results
   const handleDelete = async (e, t) => {
     e.stopPropagation(); // the card itself opens the test's statistics
     if (!confirm(`Delete "${t.name}"?\n\nThis permanently removes the test, its questions and every student's results. This cannot be undone.`)) return;

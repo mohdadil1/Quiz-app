@@ -2,14 +2,15 @@ const mongoose = require('mongoose');
 
 /**
  * TestStudent (was `students` table) — one row per (student, test).
- * Holds the one-time password generated for that test + the student's score
+ * Holds the student's score
  * and a submission status flag (0 = not submitted, 1 = submitted/aborted).
  */
 const testStudentSchema = new mongoose.Schema(
   {
     test: { type: mongoose.Schema.Types.ObjectId, ref: 'Test', required: true },
     student: { type: mongoose.Schema.Types.ObjectId, ref: 'StudentRecord', required: true },
-    password: { type: String, required: true },
+    // Old per-student password, from before tests had one shared access code. No longer used.
+    password: { type: String },
     score: { type: Number, default: 0 },
     submitted: { type: Boolean, default: false },
     violations: { type: Number, default: 0 },

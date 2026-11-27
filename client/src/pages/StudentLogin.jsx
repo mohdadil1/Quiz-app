@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import PasswordInput from '../components/PasswordInput';
 
 // Random id that stays in this browser, so the server can tell devices apart
 // (Chrome on Android reports almost the same user agent on every phone).
@@ -53,7 +52,7 @@ function leaveFullscreen() {
 export default function StudentLogin() {
   const [rollno, setRollno] = useState('');
   const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [err, setErr] = useState(takeSignedOutNotice);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
@@ -62,8 +61,8 @@ export default function StudentLogin() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErr('');
-    if (!rollno.trim() || !password) {
-      setErr('Please enter your USN and password');
+    if (!rollno.trim() || accessCode.length !== 4) {
+      setErr('Please enter your USN and the 4-digit access code');
       return;
     }
     enterFullscreen();
@@ -76,7 +75,7 @@ export default function StudentLogin() {
         screenResolution: `${screen.width}x${screen.height}`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
-      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), password, deviceInfo, deviceId: getDeviceId() });
+      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), accessCode, deviceInfo, deviceId: getDeviceId() });
       login(data.token, 'student', {
         rollno: data.rollno,
         name: data.name || name.trim(),
@@ -97,7 +96,7 @@ export default function StudentLogin() {
       } else if (e?.response?.data?.message === 'TEST_OPEN_ON_ANOTHER_DEVICE') {
         setErr('You are already logged in to this test on another device. Continue on that device, or ask your teacher to unlock it. This attempt has been recorded.');
       } else {
-        setErr('Wrong credentials entered');
+        setErr('Wrong USN or access code');
       }
     } finally {
       setLoading(false);
@@ -132,12 +131,17 @@ export default function StudentLogin() {
             />
           </div>
           <div className="form-group">
-            <label>Password</label>
-            <PasswordInput
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Password"
-              autoComplete="current-password"
+            <label>Access code</label>
+            <input
+              type="text"
+              className="form-control access-code-input"
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              placeholder="4-digit code from your teacher"
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              autoComplete="off"
             />
           </div>
           <button type="submit" className="btn btn-primary btn-block" disabled={loading}>

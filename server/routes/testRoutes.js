@@ -12,6 +12,7 @@ router.delete('/:id', ctrl.deleteTest);
 router.post('/:id/complete', ctrl.completeTest);
 router.post('/:id/guest-student', ctrl.addGuestStudent);
 router.get('/:id/credentials', ctrl.listCredentials);
+router.post('/:id/access-code', ctrl.regenerateAccessCode);
 router.put('/:id/students/:studentId', ctrl.updateStudentRecord);
 router.delete('/:id/students/:studentId', ctrl.deleteStudentRecord);
 router.post('/:id/students/:testStudentId/unlock', ctrl.unlockStudentDevice);

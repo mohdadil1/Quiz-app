@@ -1855,3 +1855,21 @@ body.student-theme {
 }
 /* Option buttons: let the picture sit above the text */
 .quiz-options .option-btn .option-text { display: flex; flex-direction: column; align-items: flex-start; }
+
+/* Test access code (teacher pages, student login) */
+.access-code-card { margin-bottom: 20px; }
+.access-code-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.access-code {
+  font-family: monospace;
+  font-size: 2.6rem;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  line-height: 1.2;
+  margin-top: 4px;
+}
+.access-code-inline { font-family: monospace; font-weight: 700; letter-spacing: 0.1em; }
+.access-code-input { font-family: monospace; font-size: 1.3rem; letter-spacing: 0.4em; }
+.access-code-input::placeholder { font-family: inherit; font-size: 0.9rem; letter-spacing: normal; }
+@media print {
+  .access-code-card { box-shadow: none !important; border: 2px solid #000 !important; }
+}
