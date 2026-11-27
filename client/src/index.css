@@ -1873,3 +1873,7 @@ body.student-theme {
 @media print {
   .access-code-card { box-shadow: none !important; border: 2px solid #000 !important; }
 }
+
+/* Add Class / Student: the class list below the forms */
+.class-list { margin-top: 28px; }
+.section-title { font-size: 1.15rem; font-weight: 600; margin: 0 0 14px; }

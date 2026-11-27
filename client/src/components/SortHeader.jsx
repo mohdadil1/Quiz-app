@@ -1,4 +1,4 @@
-// Click-to-sort table headers for student lists (USN / Name), shared by View Data and Student Credentials.
+// Click-to-sort table headers for student lists (USN / Name), shared by the class list and Student Credentials.
 
 export const DEFAULT_SORT = { key: 'rollno', dir: 'asc' };
 

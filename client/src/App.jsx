@@ -13,7 +13,6 @@ import NewTest from './pages/NewTest';
 import TestDetails from './pages/TestDetails';
 import AddQuestion from './pages/AddQuestion';
 import AddData from './pages/AddData';
-import ViewData from './pages/ViewData';
 import Statistics from './pages/Statistics';
 import TestStats from './pages/TestStats';
 import TestQuestionStats from './pages/TestQuestionStats';
@@ -81,7 +80,7 @@ export default function App() {
         />
         <Route
           path="/admin/view-data"
-          element={<ProtectedRoute role="teacher"><ViewData /></ProtectedRoute>}
+          element={<Navigate to="/admin/data" replace />}
         />
         <Route
           path="/admin/statistics"

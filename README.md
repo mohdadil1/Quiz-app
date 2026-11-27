@@ -158,9 +158,9 @@ To run a finished test again, click **Retake** next to it. This makes a new test
 
 ### 7. Manage your classes
 
-**View Data** lists every class with its students. Click the **USN** or **Name** header to sort (click again to reverse). **Delete Class** removes the class and its students; a class that is still used by a test can't be deleted until you delete those tests.
+At the bottom of **Add Class / Student**, **Classes and Students** lists every class with its students, and updates as soon as you add students. Click the **USN** or **Name** header to sort (click again to reverse). **Delete Class** removes the class and its students; a class that is still used by a test can't be deleted until you delete those tests.
 
-![View Data](docs/screenshots/view-data.png)
+![Classes and Students](docs/screenshots/view-data.png)
 
 ### 8. Your profile
 

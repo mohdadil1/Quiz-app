@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import api from '../api/client';
 import TeacherLayout from '../components/TeacherLayout';
+import ClassList from '../components/ClassList';
 
 const NEW_CLASS = '__new__';
 
@@ -38,6 +39,8 @@ export default function AddData() {
   const [parsed, setParsed] = useState(null); // { fileName, students: [{ rollno, name }] }
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
+  // Bumped after students are added, so the class list at the bottom reloads
+  const [listVersion, setListVersion] = useState(0);
 
   const loadClasses = () => api.get('/classes').then((r) => setClasses(r.data)).catch(() => {});
 
@@ -50,6 +53,7 @@ export default function AddData() {
       await api.post(`/classes/${extra.classId}/students`, { rollno: extra.rollno.trim(), name: extra.name.trim() || undefined });
       setMsg({ type: 'success', text: 'Student added successfully' });
       setExtra({ classId: '', rollno: '', name: '' });
+      setListVersion((v) => v + 1);
     } catch (e) {
       setMsg({ type: 'error', text: e?.response?.data?.message || 'Failed to add student' });
     }
@@ -97,6 +101,7 @@ export default function AddData() {
       setParsed(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       loadClasses();
+      setListVersion((v) => v + 1);
     } catch (e) {
       setMsg({ type: 'error', text: e?.response?.data?.message || 'Failed to upload students' });
     } finally {
@@ -180,6 +185,8 @@ export default function AddData() {
           </div>
         </div>
       </div>
+
+      <ClassList refreshKey={listVersion} onClassDeleted={loadClasses} />
     </TeacherLayout>
   );
 }

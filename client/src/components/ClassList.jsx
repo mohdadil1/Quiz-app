@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import api from '../api/client';
-import TeacherLayout from '../components/TeacherLayout';
-import SortHeader, { DEFAULT_SORT, sortStudents, nextSort } from '../components/SortHeader';
+import SortHeader, { DEFAULT_SORT, sortStudents, nextSort } from './SortHeader';
 
-export default function ViewData() {
+// Every class with its students (shown at the bottom of Add Class / Student).
+// Reloads whenever `refreshKey` changes; calls `onClassDeleted` after a class is removed.
+export default function ClassList({ refreshKey = 0, onClassDeleted = () => {} }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -15,8 +16,13 @@ export default function ViewData() {
   };
 
   useEffect(() => {
-    api.get('/classes/data').then((r) => setData(r.data)).catch(() => {}).finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    api.get('/classes/data')
+      .then((r) => { if (!cancelled) setData(r.data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [refreshKey]);
 
   const handleDelete = async (c) => {
     if (!confirm(`Delete class "${c.name}" and its ${c.students.length} students? This cannot be undone.`)) return;
@@ -25,6 +31,7 @@ export default function ViewData() {
     try {
       await api.delete(`/classes/${c._id}`);
       setData((prev) => prev.filter((x) => x._id !== c._id));
+      onClassDeleted();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete class');
     } finally {
@@ -32,12 +39,13 @@ export default function ViewData() {
     }
   };
 
-  if (loading) return <TeacherLayout title="View Data" showBack><div className="empty-state">Loading…</div></TeacherLayout>;
-
   return (
-    <TeacherLayout title="View Data" showBack>
+    <section className="class-list">
+      <h2 className="section-title">Classes and Students</h2>
       {error && <div className="alert alert-error">{error}</div>}
-      {data.length === 0 ? (
+      {loading ? (
+        <div className="card"><div className="card-body"><div className="empty-state">Loading…</div></div></div>
+      ) : data.length === 0 ? (
         <div className="card">
           <div className="card-body"><div className="empty-state"><h5>No classes yet</h5></div></div>
         </div>
@@ -86,6 +94,6 @@ export default function ViewData() {
           </div>
         ))
       )}
-    </TeacherLayout>
+    </section>
   );
 }

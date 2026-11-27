@@ -39,7 +39,6 @@ export default function Sidebar({ open = false, onClose = () => {} }) {
           <NavLink to="/admin/data" onClick={handleNavClick}>Add Class / Student</NavLink>
           <NavLink to="/admin/student-data" onClick={handleNavClick}>Get Student Data</NavLink>
           <NavLink to="/admin/statistics" onClick={handleNavClick}>Statistics</NavLink>
-          <NavLink to="/admin/view-data" onClick={handleNavClick}>View Data</NavLink>
           <a href="#logout" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Logout</a>
         </nav>
         <div className="sidebar-credit">Made by SCA Teachers <span role="img" aria-label="love">❤️</span></div>
