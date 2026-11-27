@@ -172,7 +172,7 @@ Click **Profile** in the sidebar (or your picture at the top of it) to set your 
 
 ## Student guide
 
-1. Open the app's home page and enter your **USN**, your **name** and the **4-digit access code** your teacher gives out for the test.
+1. Open the app's home page and enter your **USN** and the **4-digit access code** your teacher gives out for the test.
 
    ![Student login](docs/screenshots/student-login.png)
 

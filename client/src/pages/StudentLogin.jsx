@@ -51,7 +51,6 @@ function leaveFullscreen() {
 
 export default function StudentLogin() {
   const [rollno, setRollno] = useState('');
-  const [name, setName] = useState('');
   const [accessCode, setAccessCode] = useState('');
   const [err, setErr] = useState(takeSignedOutNotice);
   const [loading, setLoading] = useState(false);
@@ -75,10 +74,10 @@ export default function StudentLogin() {
         screenResolution: `${screen.width}x${screen.height}`,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       };
-      const { data } = await api.post('/students/login', { rollno: rollno.trim(), name: name.trim(), accessCode, deviceInfo, deviceId: getDeviceId() });
+      const { data } = await api.post('/students/login', { rollno: rollno.trim(), accessCode, deviceInfo, deviceId: getDeviceId() });
       login(data.token, 'student', {
         rollno: data.rollno,
-        name: data.name || name.trim(),
+        name: data.name || '',
         testId: data.testId,
         testName: data.testName,
         testStatus: data.testStatus,
@@ -118,16 +117,6 @@ export default function StudentLogin() {
               onChange={(e) => setRollno(e.target.value)}
               placeholder="USN (e.g. 1AB21CS001)"
               autoFocus
-            />
-          </div>
-          <div className="form-group">
-            <label>Name <span className="text-muted">(optional)</span></label>
-            <input
-              type="text"
-              className="form-control"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
             />
           </div>
           <div className="form-group">
