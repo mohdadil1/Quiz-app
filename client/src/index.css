@@ -1877,3 +1877,76 @@ body.student-theme {
 /* Add Class / Student: the class list below the forms */
 .class-list { margin-top: 28px; }
 .section-title { font-size: 1.15rem; font-weight: 600; margin: 0 0 14px; }
+
+/* Get Student Data: completed tests folded into "Past Tests" */
+.past-tests { overflow: hidden; }
+.past-tests-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 20px;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.past-tests-toggle:hover { background: #f8f9fc; }
+.past-tests-toggle:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.past-tests-chevron { display: inline-block; transition: transform 0.15s; color: var(--text-muted); }
+.past-tests-chevron.is-open { transform: rotate(90deg); }
+.past-tests-title { font-size: 1.05rem; font-weight: 600; }
+.past-tests-count {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-radius: 999px;
+  padding: 1px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.past-tests-hint { margin-left: auto; font-size: 0.9rem; }
+.past-tests .card-body { border-top: 1px solid var(--border); }
+
+.past-tests-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.past-tests-toolbar .form-control { flex: 1 1 240px; }
+.past-tests-selectall { margin: 0; white-space: nowrap; }
+
+.past-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); }
+.past-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.past-row:last-child { border-bottom: 0; }
+.past-row:hover { background: #f8f9fc; }
+.past-row.is-selected { background: var(--primary-light); }
+.past-row input[type="checkbox"] { width: 16px; height: 16px; flex: none; cursor: pointer; }
+.past-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.past-row-main:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.past-row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.past-row-meta { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.past-row-delete { flex: none; }
+.past-row-delete:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
